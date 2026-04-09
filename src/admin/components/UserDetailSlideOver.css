@@ -1,0 +1,299 @@
+/* ═══════════════════════════════════════
+   User Detail Slide-Over — Claritas Admin
+   ═══════════════════════════════════════ */
+
+.slideover-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--slideover-backdrop);
+  z-index: var(--z-slideover-backdrop);
+  animation: fadeIn var(--duration-normal) var(--ease-out-expo);
+}
+
+.slideover-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--slideover-width);
+  background: var(--surface);
+  border-left: 1px solid var(--glass-border);
+  z-index: var(--z-slideover);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight var(--duration-slow) var(--ease-out-expo);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.4);
+}
+
+.slideover-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.slideover-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.slideover-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+  transform: none;
+}
+
+.slideover-user-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.slideover-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--primary);
+  flex-shrink: 0;
+}
+
+.slideover-user-info h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.slideover-user-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.slideover-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.slideover-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0 24px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.slideover-tab {
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-fast);
+}
+
+.slideover-tab:hover {
+  color: var(--foreground);
+  transform: none;
+}
+
+.slideover-tab.active {
+  color: var(--secondary);
+  border-bottom-color: var(--secondary);
+}
+
+.slideover-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* ── Form Fields ── */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--admin-input-bg);
+  border: 1px solid var(--admin-input-border);
+  border-radius: var(--admin-input-radius);
+  color: var(--foreground);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color var(--duration-fast);
+}
+
+.form-input:focus {
+  border-color: var(--admin-input-focus);
+  box-shadow: 0 0 0 3px rgba(46, 196, 241, 0.1);
+}
+
+.form-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Timeline ── */
+.timeline-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--table-border);
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-action {
+  font-weight: 500;
+  font-size: 0.88rem;
+}
+
+.timeline-detail {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.timeline-time {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Enrollments ── */
+.enrollment-card {
+  padding: 14px 18px;
+  background: var(--background);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.enrollment-name {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.enrollment-progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.enrollment-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 500ms ease-out;
+}
+
+/* ── Permissions Grid ── */
+.perm-category {
+  margin-bottom: 20px;
+}
+
+.perm-category-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--table-border);
+}
+
+.perm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.perm-item label {
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+/* Toggle Switch */
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  border: none;
+  padding: 0;
+}
+
+.toggle.active {
+  background: var(--secondary);
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--duration-fast) var(--ease-out-expo);
+}
+
+.toggle.active::after {
+  transform: translateX(18px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

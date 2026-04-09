@@ -1,0 +1,115 @@
+/* ═══════════════════════════════════════════════════════════
+   Claritas Admin — Design Tokens
+   Extends the base design system for admin dashboard surfaces
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Layout Dimensions ── */
+  --admin-sidebar-width: 272px;
+  --admin-sidebar-collapsed: 72px;
+  --admin-topbar-height: 64px;
+  --admin-min-width: 1280px;
+
+  /* ── Grid System ── */
+  --admin-columns: 12;
+  --admin-gutter: 24px;
+
+  /* ── Status Colors ── */
+  --status-active: #34D399;
+  --status-active-bg: rgba(52, 211, 153, 0.12);
+  --status-suspended: #FBBF24;
+  --status-suspended-bg: rgba(251, 191, 36, 0.12);
+  --status-invited: #60A5FA;
+  --status-invited-bg: rgba(96, 165, 250, 0.12);
+  --status-deleted: #F87171;
+  --status-deleted-bg: rgba(248, 113, 113, 0.12);
+  --status-pending: #A78BFA;
+  --status-pending-bg: rgba(167, 139, 250, 0.12);
+
+  /* ── Role Colors ── */
+  --role-super-admin: #F472B6;
+  --role-super-admin-bg: rgba(244, 114, 182, 0.12);
+  --role-org-admin: #60A5FA;
+  --role-org-admin-bg: rgba(96, 165, 250, 0.12);
+  --role-course-mgr: #34D399;
+  --role-course-mgr-bg: rgba(52, 211, 153, 0.12);
+  --role-support: #FBBF24;
+  --role-support-bg: rgba(251, 191, 36, 0.12);
+  --role-custom: #A78BFA;
+  --role-custom-bg: rgba(167, 139, 250, 0.12);
+
+  /* ── Table Tokens ── */
+  --table-row-height: 56px;
+  --table-header-bg: rgba(255, 255, 255, 0.02);
+  --table-row-hover: rgba(255, 255, 255, 0.04);
+  --table-row-selected: rgba(46, 196, 241, 0.06);
+  --table-border: rgba(255, 255, 255, 0.06);
+
+  /* ── Slide-over ── */
+  --slideover-width: 520px;
+  --slideover-backdrop: rgba(0, 0, 0, 0.6);
+
+  /* ── Z-Index Layers ── */
+  --z-sidebar: 40;
+  --z-topbar: 50;
+  --z-slideover-backdrop: 60;
+  --z-slideover: 70;
+  --z-modal-backdrop: 80;
+  --z-modal: 90;
+  --z-impersonation: 100;
+  --z-toast: 110;
+
+  /* ── Transition Presets ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* ── Impersonation ── */
+  --impersonation-bg: rgba(251, 191, 36, 0.15);
+  --impersonation-border: rgba(251, 191, 36, 0.4);
+  --impersonation-text: #FBBF24;
+
+  /* ── Admin Surface Enhancements ── */
+  --admin-card-radius: 14px;
+  --admin-input-bg: rgba(255, 255, 255, 0.04);
+  --admin-input-border: rgba(255, 255, 255, 0.1);
+  --admin-input-focus: rgba(46, 196, 241, 0.4);
+  --admin-input-radius: 8px;
+
+  /* ── Course Status Colors ── */
+  --course-draft: #A78BFA;
+  --course-draft-bg: rgba(167, 139, 250, 0.12);
+  --course-published: #34D399;
+  --course-published-bg: rgba(52, 211, 153, 0.12);
+  --course-archived: #9CA3AF;
+  --course-archived-bg: rgba(156, 163, 175, 0.12);
+  --course-review: #FBBF24;
+  --course-review-bg: rgba(251, 191, 36, 0.12);
+
+  /* ── Course Editor Layout ── */
+  --editor-sidebar-width: 280px;
+  --editor-rail-width: 300px;
+  --editor-block-border: rgba(255, 255, 255, 0.06);
+  --editor-block-active: rgba(46, 196, 241, 0.08);
+  --editor-autosave-color: #34D399;
+
+  /* ── Drag & Drop ── */
+  --dnd-drop-zone: rgba(46, 196, 241, 0.1);
+  --dnd-drop-border: rgba(46, 196, 241, 0.4);
+  --dnd-dragging-opacity: 0.5;
+  --dnd-ghost-bg: rgba(16, 19, 26, 0.9);
+
+  /* ── Media Manager ── */
+  --media-grid-size: 120px;
+  --upload-progress-color: var(--secondary);
+  --upload-progress-bg: rgba(46, 196, 241, 0.12);
+  --media-folder-color: #FBBF24;
+
+  /* ── SCORM/xAPI ── */
+  --scorm-queued: #9CA3AF;
+  --scorm-validating: #60A5FA;
+  --scorm-valid: #34D399;
+  --scorm-invalid: #F87171;
+}

@@ -1,0 +1,123 @@
+.report-builder-layout {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  min-height: 500px;
+}
+
+.rb-sidepanel {
+  width: 280px;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.rb-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  margin-top: 0;
+}
+
+.rb-panel-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 24px;
+}
+
+.rb-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.rb-field-pill {
+  padding: 10px 14px;
+  background: var(--admin-input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.rb-field-pill:active {
+  cursor: grabbing;
+}
+.rb-field-pill.available:hover {
+  background: rgba(46, 196, 241, 0.05); /* Highlight on hover using secondary color tint */
+  border-color: var(--secondary);
+}
+.rb-field-pill.canvas {
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+
+.drag-handle {
+  color: var(--muted);
+}
+
+.rb-main-canvas {
+  flex: 1;
+  padding: 32px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--background); /* make the inner table pop against surface */
+}
+
+.rb-table-wrapper {
+  flex: 1;
+  background: var(--surface);
+  border: 1px dashed var(--muted);
+  border-radius: 8px;
+  overflow: auto;
+  position: relative;
+}
+
+.rb-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--muted);
+}
+.rb-empty-state h4 {
+  margin: 16px 0 8px;
+  color: var(--foreground);
+}
+
+.rb-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rb-preview-table th, .rb-preview-table td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.rb-preview-table th {
+  border-bottom: 2px solid var(--border);
+}
+
+.mock-data-line {
+  height: 12px;
+  background: var(--admin-input-bg);
+  border-radius: 4px;
+  width: 80%;
+  opacity: 0.5;
+}

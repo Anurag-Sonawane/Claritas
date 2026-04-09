@@ -1,5 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, FileCheck, MapPin, Calendar, Bell, Wallet, MessageSquare, Info, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, BookOpen, FileCheck, MapPin, Calendar, Bell, Wallet, MessageSquare, Info, ShieldAlert, LogOut, Sparkles, Code2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import PageWrapper from '../components/PageWrapper';
 import './DashboardLayout.css';
 
 const NavigationLinks = [
@@ -12,11 +14,14 @@ const NavigationLinks = [
   { path: '/fees', label: 'Fees & Scholarships', icon: Wallet },
   { path: '/complaints', label: 'Complaints', icon: MessageSquare },
   { path: '/proctored-test', label: 'Proctored Test', icon: ShieldAlert },
+  { path: '/compiler', label: 'Sandbox', icon: Code2 },
+  { path: '/ai', label: 'AI Study Hub', icon: Sparkles },
   { path: '/about', label: 'About Us', icon: Info },
 ];
 
 export default function DashboardLayout() {
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <div className="layout-container">
@@ -27,17 +32,24 @@ export default function DashboardLayout() {
             <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--foreground)'}}>Claritas</h2>
           </div>
           
-          <div className="user-profile">
-            <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="User Avatar" className="avatar" />
-            <div className="user-details" style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className="user-name" style={{ fontWeight: '600' }}>Anurag</span>
-              <span className="text-muted" style={{ fontSize: '0.8rem' }}>Computer Science</span>
+          <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img src={user?.avatarUrl || "https://i.pravatar.cc/150?u=student1"} alt="User Avatar" className="avatar" />
+              <div className="user-details" style={{ display: 'flex', flexDirection: 'column' }}>
+                <span className="user-name" style={{ fontWeight: '600' }}>{user?.name || 'Student'}</span>
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>Computer Science</span>
+              </div>
             </div>
+            <button onClick={logout} className="btn-outline btn-sm danger" title="Sign Out" style={{ borderColor: 'rgba(248, 113, 113, 0.4)', color: 'var(--status-deleted)' }}>
+              <LogOut size={16} /> Sign Out
+            </button>
           </div>
         </header>
 
         <div className="page-content">
-          <Outlet />
+          <PageWrapper locationKey={location.pathname}>
+            <Outlet />
+          </PageWrapper>
         </div>
       </main>
 

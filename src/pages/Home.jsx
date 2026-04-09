@@ -1,6 +1,8 @@
-import { Activity, BookOpen, Target, Calendar, Award } from 'lucide-react';
+import { Activity, BookOpen, Target, Calendar, Award, Sparkles, Flame } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
+  const { user } = useAuth();
   const stream = [
     { title: 'Physics Lab Report', type: 'Physics', status: 'PENDING' },
     { title: 'Calculus Problem Set', type: 'Math', status: 'SUBMITTED' },
@@ -21,7 +23,7 @@ export default function Home() {
         border: '1px solid var(--glass-border)'
       }}>
         <div style={{ flex: 1 }}>
-          <h1 style={{ margin: '0 0 0.5rem 0', color: 'var(--foreground)', fontSize: '2.5rem' }}>Good Afternoon, Anurag! ✨</h1>
+          <h1 style={{ margin: '0 0 0.5rem 0', color: 'var(--foreground)', fontSize: '2.5rem' }}>Good Afternoon, {user?.name?.split(' ')[0] || 'Student'}! ✨</h1>
           <p className="text-muted" style={{ fontSize: '1.2rem', margin: 0 }}>You've completed 80% of your tasks this week. Keep the momentum going!</p>
           <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <button style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -51,6 +53,28 @@ export default function Home() {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.4rem' }}>3 Tasks Due</h3>
             <span className="text-muted" style={{ fontSize: '0.9rem' }}>Within next 48 hours</span>
+          </div>
+        </div>
+
+        {/* Gamification Placeholder */}
+        <div className="surface" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+          <div style={{ padding: '16px', background: 'rgba(255, 90, 54, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
+            <Flame size={28} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.4rem' }}>7 Day Streak!</h3>
+            <span className="text-muted" style={{ fontSize: '0.9rem' }}>You're on fire.</span>
+          </div>
+        </div>
+
+        {/* AI Generator Placeholder */}
+        <div className="surface glow-panel" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', borderColor: 'rgba(46, 196, 241, 0.4)' }}>
+          <div style={{ padding: '16px', background: 'rgba(46, 196, 241, 0.1)', borderRadius: '12px', color: 'var(--secondary)' }}>
+            <Sparkles size={28} />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.4rem' }}>AI Summary</h3>
+            <span className="text-muted" style={{ fontSize: '0.9rem' }}>Generate from last lecture</span>
           </div>
         </div>
 

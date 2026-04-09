@@ -118,3 +118,41 @@ button:focus-visible {
 .text-muted {
   color: var(--muted);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Mobile Responsive Overrides
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Crush all hardcoded multi-column inline grids globally */
+  div[style*="gridTemplateColumns"] {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Fix Floating Taskbars to allow scrolling on mobile */
+  .bottom-taskbar, .admin-bottom-taskbar {
+    width: 95vw !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    justify-content: flex-start !important;
+    padding: 8px !important;
+  }
+  
+  .nav-link, .admin-nav-link {
+    flex-shrink: 0 !important;
+  }
+  
+  /* Squeeze topbars */
+  .topbar, .admin-topbar {
+    padding: 0 1rem !important;
+  }
+  
+  .topbar-search {
+    display: none !important; /* Hide long search input on narrow devices */
+  }
+  
+  /* Stack inline flex rows typically found in headers */
+  .admin-page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+}

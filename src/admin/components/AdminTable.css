@@ -1,0 +1,292 @@
+/* ═══════════════════════════════════════
+   Admin Table — Claritas Admin
+   ═══════════════════════════════════════ */
+
+.admin-table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--admin-card-radius);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.admin-table thead th {
+  padding: 12px 16px;
+  background: var(--table-header-bg);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--table-border);
+  white-space: nowrap;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.admin-table thead th.sortable {
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-in-out);
+}
+
+.admin-table thead th.sortable:hover {
+  color: var(--foreground);
+}
+
+.admin-table thead th .sort-icon {
+  display: inline-flex;
+  margin-left: 4px;
+  opacity: 0.4;
+  transition: opacity var(--duration-fast);
+}
+
+.admin-table thead th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--secondary);
+}
+
+.admin-table tbody tr {
+  transition: background var(--duration-fast) var(--ease-in-out);
+  cursor: pointer;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--table-row-hover);
+}
+
+.admin-table tbody tr.selected {
+  background: var(--table-row-selected);
+}
+
+.admin-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--table-border);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+
+.admin-table tbody td.cell-muted {
+  color: var(--muted);
+}
+
+/* ── Checkbox Column ── */
+.admin-table .col-check {
+  width: 48px;
+  text-align: center;
+}
+
+.admin-table .col-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ── User Cell (Avatar + Name) ── */
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-cell-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.user-cell-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-cell-name {
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-cell-email-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Role Badge ── */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Status Badge ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.status-badge--active {
+  background: var(--status-active-bg);
+  color: var(--status-active);
+}
+
+.status-badge--suspended {
+  background: var(--status-suspended-bg);
+  color: var(--status-suspended);
+}
+
+.status-badge--invited {
+  background: var(--status-invited-bg);
+  color: var(--status-invited);
+}
+
+.status-badge--deleted {
+  background: var(--status-deleted-bg);
+  color: var(--status-deleted);
+}
+
+.status-badge--pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending);
+}
+
+/* ── Actions Menu ── */
+.actions-cell {
+  position: relative;
+}
+
+.actions-trigger {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.actions-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--glass-border);
+  color: var(--foreground);
+  transform: none;
+}
+
+.actions-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  padding: 6px;
+  animation: menuSlideIn var(--duration-fast) var(--ease-out-expo);
+}
+
+.actions-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: var(--foreground);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+  text-align: left;
+}
+
+.actions-menu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: none;
+}
+
+.actions-menu-item.danger {
+  color: var(--status-deleted);
+}
+
+.actions-menu-item.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.actions-menu-divider {
+  height: 1px;
+  background: var(--glass-border);
+  margin: 4px 0;
+}
+
+/* ── Skeleton Loading ── */
+.skeleton-row td {
+  padding: 16px;
+}
+
+.skeleton-cell {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes menuSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Empty State ── */
+.table-empty {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--muted);
+}
+
+.table-empty-icon {
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.table-empty h3 {
+  color: var(--foreground);
+  margin-bottom: 8px;
+}
