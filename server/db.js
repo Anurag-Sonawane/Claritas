@@ -35,7 +35,30 @@ export function initDatabase() {
       students_count INTEGER DEFAULT 0,
       term TEXT,
       schedule TEXT,
+      description TEXT,
+      status TEXT DEFAULT 'draft',
+      category TEXT,
+      level TEXT,
+      thumbnail_gradient TEXT,
+      tags TEXT,
+      modules_json TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      published_at TEXT,
+      manager_id TEXT,
+      manager_name TEXT,
+      total_modules INTEGER DEFAULT 0,
+      total_lessons INTEGER DEFAULT 0,
+      total_duration TEXT DEFAULT '0min',
       FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS certificates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      course TEXT NOT NULL,
+      rules TEXT NOT NULL,
+      last_edited TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS enrollments (

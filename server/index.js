@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { db, initDatabase } from './db.js';
 
 const app = express();
@@ -343,19 +344,32 @@ app.post('/api/attendance/session', authenticateToken, (req, res) => {
     return res.status(400).json({ error: 'course_id, date, and records array required' });
   }
 
-  const deleteExisting = db.prepare('DELETE FROM attendance_records WHERE course_id = ? AND lecture_date = ?');
-  deleteExisting.run(course_id, date);
+  try {
+    db.exec('BEGIN TRANSACTION;');
+    
+    const deleteExisting = db.prepare('DELETE FROM attendance_records WHERE course_id = ? AND lecture_date = ?');
+    deleteExisting.run(course_id, date);
 
-  const insertStmt = db.prepare(`
-    INSERT INTO attendance_records (id, course_id, lecture_date, student_id, status)
-    VALUES (?, ?, ?, ?, ?)
-  `);
+    const insertStmt = db.prepare(`
+      INSERT INTO attendance_records (id, course_id, lecture_date, student_id, status)
+      VALUES (?, ?, ?, ?, ?)
+    `);
 
-  for (const r of records) {
-    insertStmt.run(`att-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, course_id, date, r.student_id, r.status);
+    for (const r of records) {
+      const id = crypto.randomUUID();
+      insertStmt.run(id, course_id, date, r.student_id, r.status);
+    }
+
+    db.exec('COMMIT;');
+    res.json({ success: true, count: records.length });
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK;');
+    } catch (rollbackErr) {
+      // Ignored if no transaction is active
+    }
+    res.status(500).json({ error: 'Failed to save attendance session: ' + err.message });
   }
-
-  res.json({ success: true, count: records.length });
 });
 
 // ── Sandbox Compiler Runner Endpoint ──
@@ -509,6 +523,330 @@ app.get('/api/assessments', (req, res) => {
     JOIN courses c ON a.course_id = c.id
   `).all();
   res.json(list);
+});
+
+// ── Profile Endpoint ──
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  const user = db.prepare('SELECT id, email, name, role, role_name as roleName, department, organization, status, last_active_at as lastActiveAt, avatar_url as avatarUrl FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  res.json({ user });
+});
+
+// ── Admin Courses API Endpoints ──
+app.get('/api/admin/courses', (req, res) => {
+  const { query = '', status = '', category = '', page = 1, perPage = 12, sortBy = 'updated_at', sortDir = 'desc' } = req.query;
+
+  let sql = 'SELECT * FROM courses WHERE 1=1';
+  const params = [];
+
+  if (query) {
+    sql += ' AND (LOWER(title) LIKE ? OR LOWER(description) LIKE ?)';
+    const q = `%${query.toLowerCase()}%`;
+    params.push(q, q);
+  }
+  if (status) {
+    sql += ' AND status = ?';
+    params.push(status);
+  }
+  if (category) {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+
+  // Count total matching
+  const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
+  const totalRow = db.prepare(countSql).get(...params);
+  const total = totalRow ? totalRow.total : 0;
+
+  // Sorting
+  const allowedSortCols = ['title', 'updated_at', 'created_at', 'enrollmentCount', 'students_count'];
+  const sortCol = allowedSortCols.includes(sortBy) ? (sortBy === 'enrollmentCount' ? 'students_count' : sortBy) : 'updated_at';
+  const order = sortDir.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  sql += ` ORDER BY ${sortCol} ${order} LIMIT ? OFFSET ?`;
+  const offset = (parseInt(page) - 1) * parseInt(perPage);
+  params.push(parseInt(perPage), offset);
+
+  const rawCourses = db.prepare(sql).all(...params);
+
+  // Parse JSON columns before sending
+  const courses = rawCourses.map(c => ({
+    id: c.id,
+    code: c.code,
+    title: c.title,
+    department: c.department,
+    instructorId: c.instructor_id,
+    enrollmentCount: c.students_count,
+    term: c.term,
+    schedule: c.schedule,
+    description: c.description,
+    status: c.status,
+    category: c.category,
+    level: c.level,
+    thumbnailGradient: c.thumbnail_gradient,
+    tags: c.tags ? JSON.parse(c.tags) : [],
+    modules: c.modules_json ? JSON.parse(c.modules_json) : [],
+    createdAt: c.created_at,
+    updatedAt: c.updated_at,
+    publishedAt: c.published_at,
+    managerId: c.manager_id,
+    managerName: c.manager_name,
+    totalModules: c.total_modules,
+    totalLessons: c.total_lessons,
+    totalDuration: c.total_duration
+  }));
+
+  res.json({
+    data: courses,
+    meta: {
+      total,
+      page: parseInt(page),
+      perPage: parseInt(perPage),
+      totalPages: Math.ceil(total / parseInt(perPage)) || 1
+    }
+  });
+});
+
+app.get('/api/admin/courses/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Course not found' });
+
+  res.json({
+    data: {
+      id: c.id,
+      code: c.code,
+      title: c.title,
+      department: c.department,
+      instructorId: c.instructor_id,
+      enrollmentCount: c.students_count,
+      term: c.term,
+      schedule: c.schedule,
+      description: c.description,
+      status: c.status,
+      category: c.category,
+      level: c.level,
+      thumbnailGradient: c.thumbnail_gradient,
+      tags: c.tags ? JSON.parse(c.tags) : [],
+      modules: c.modules_json ? JSON.parse(c.modules_json) : [],
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+      publishedAt: c.published_at,
+      managerId: c.manager_id,
+      managerName: c.manager_name,
+      totalModules: c.total_modules,
+      totalLessons: c.total_lessons,
+      totalDuration: c.total_duration
+    }
+  });
+});
+
+app.post('/api/admin/courses', authenticateToken, (req, res) => {
+  const { title, description, category, level, tags = [] } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+
+  const id = `course-${Date.now()}`;
+  const code = `CS-${Date.now().toString().slice(-4)}`;
+  const now = new Date().toISOString();
+  const thumbnailGradient = 'linear-gradient(135deg, #667eea, #764ba2)';
+
+  db.prepare(`
+    INSERT INTO courses (
+      id, code, title, department, instructor_id, students_count, term, schedule,
+      description, status, category, level, thumbnail_gradient, tags, modules_json,
+      created_at, updated_at, published_at, manager_id, manager_name, total_modules, total_lessons, total_duration
+    ) VALUES (?, ?, ?, 'Computer Science', NULL, 0, 'Fall 2026', 'TBD', ?, 'draft', ?, ?, ?, ?, '[]', ?, ?, NULL, ?, ?, 0, 0, '0min')
+  `).run(id, code, title, description || '', category || 'Computer Science', level || 'Beginner', thumbnailGradient, JSON.stringify(tags), now, now, req.user.id, req.user.name);
+
+  const created = db.prepare('SELECT * FROM courses WHERE id = ?').get(id);
+  res.status(201).json({ data: created });
+});
+
+app.put('/api/admin/courses/:id', authenticateToken, (req, res) => {
+  const { title, description, category, level, status, tags, modules } = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  const updatedTitle = title !== undefined ? title : course.title;
+  const updatedDesc = description !== undefined ? description : course.description;
+  const updatedCat = category !== undefined ? category : course.category;
+  const updatedLevel = level !== undefined ? level : course.level;
+  const updatedStatus = status !== undefined ? status : course.status;
+  const updatedTags = tags !== undefined ? JSON.stringify(tags) : course.tags;
+  const updatedModules = modules !== undefined ? JSON.stringify(modules) : course.modules_json;
+  
+  let totalModules = course.total_modules;
+  let totalLessons = course.total_lessons;
+  if (modules !== undefined) {
+    totalModules = modules.length;
+    totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length || 0), 0);
+  }
+
+  const now = new Date().toISOString();
+  const publishedAt = updatedStatus === 'published' && course.status !== 'published' ? now : course.published_at;
+
+  db.prepare(`
+    UPDATE courses
+    SET title = ?, description = ?, category = ?, level = ?, status = ?, tags = ?, modules_json = ?, total_modules = ?, total_lessons = ?, updated_at = ?, published_at = ?
+    WHERE id = ?
+  `).run(updatedTitle, updatedDesc, updatedCat, updatedLevel, updatedStatus, updatedTags, updatedModules, totalModules, totalLessons, now, publishedAt, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  res.json({ data: updated });
+});
+
+app.delete('/api/admin/courses/:id', authenticateToken, (req, res) => {
+  db.prepare('DELETE FROM courses WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// Module & Lesson Operations
+app.post('/api/admin/courses/:id/modules', authenticateToken, (req, res) => {
+  const { title } = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  const modules = course.modules_json ? JSON.parse(course.modules_json) : [];
+  const newMod = {
+    id: `module-${Date.now()}`,
+    title: title || 'New Module',
+    description: '',
+    isExpanded: true,
+    lessons: []
+  };
+
+  modules.push(newMod);
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE courses
+    SET modules_json = ?, total_modules = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(modules), modules.length, now, req.params.id);
+
+  res.status(201).json({ data: newMod });
+});
+
+app.delete('/api/admin/courses/:id/modules/:mid', authenticateToken, (req, res) => {
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  let modules = course.modules_json ? JSON.parse(course.modules_json) : [];
+  modules = modules.filter(m => m.id !== req.params.mid);
+  const now = new Date().toISOString();
+  const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length || 0), 0);
+
+  db.prepare(`
+    UPDATE courses
+    SET modules_json = ?, total_modules = ?, total_lessons = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(modules), modules.length, totalLessons, now, req.params.id);
+
+  res.json({ success: true });
+});
+
+app.post('/api/admin/courses/:id/modules/:mid/lessons', authenticateToken, (req, res) => {
+  const { title } = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  const modules = course.modules_json ? JSON.parse(course.modules_json) : [];
+  const mod = modules.find(m => m.id === req.params.mid);
+  if (!mod) return res.status(404).json({ error: 'Module not found' });
+
+  const newLesson = {
+    id: `lesson-${Date.now()}`,
+    title: title || 'New Lesson',
+    type: 'text',
+    duration: '10min',
+    isCompleted: false,
+    contentBlocks: [{ id: `block-${Date.now()}`, type: 'text', content: '<p>Start writing your lesson content here...</p>' }]
+  };
+
+  mod.lessons.push(newLesson);
+  const now = new Date().toISOString();
+  const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length || 0), 0);
+
+  db.prepare(`
+    UPDATE courses
+    SET modules_json = ?, total_lessons = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(modules), totalLessons, now, req.params.id);
+
+  res.status(201).json({ data: newLesson });
+});
+
+app.delete('/api/admin/courses/:id/modules/:mid/lessons/:lid', authenticateToken, (req, res) => {
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  const modules = course.modules_json ? JSON.parse(course.modules_json) : [];
+  const mod = modules.find(m => m.id === req.params.mid);
+  if (!mod) return res.status(404).json({ error: 'Module not found' });
+
+  mod.lessons = mod.lessons.filter(l => l.id !== req.params.lid);
+  const now = new Date().toISOString();
+  const totalLessons = modules.reduce((sum, m) => sum + (m.lessons?.length || 0), 0);
+
+  db.prepare(`
+    UPDATE courses
+    SET modules_json = ?, total_lessons = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(modules), totalLessons, now, req.params.id);
+
+  res.json({ success: true });
+});
+
+app.put('/api/admin/courses/:id/modules/:mid/lessons/:lid', authenticateToken, (req, res) => {
+  const updates = req.body;
+  const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  const modules = course.modules_json ? JSON.parse(course.modules_json) : [];
+  const mod = modules.find(m => m.id === req.params.mid);
+  if (!mod) return res.status(404).json({ error: 'Module not found' });
+
+  const lesson = mod.lessons.find(l => l.id === req.params.lid);
+  if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+  Object.assign(lesson, updates);
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    UPDATE courses
+    SET modules_json = ?, updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(modules), now, req.params.id);
+
+  res.json({ data: lesson });
+});
+
+// ── Admin Certificates API Endpoints ──
+app.get('/api/admin/certificates', (req, res) => {
+  const certs = db.prepare('SELECT * FROM certificates ORDER BY last_edited DESC').all();
+  res.json(certs);
+});
+
+app.post('/api/admin/certificates', authenticateToken, (req, res) => {
+  const { name, course, rules } = req.body;
+  if (!name || !course) return res.status(400).json({ error: 'Name and Course are required' });
+
+  const id = `cert-${Date.now()}`;
+  const now = new Date().toISOString().substring(0, 10);
+
+  db.prepare(`
+    INSERT INTO certificates (id, name, course, rules, last_edited)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, name, course, rules || 'Score > 80%', now);
+
+  const created = db.prepare('SELECT * FROM certificates WHERE id = ?').get(id);
+  res.status(201).json(created);
+});
+
+app.delete('/api/admin/certificates/:id', authenticateToken, (req, res) => {
+  db.prepare('DELETE FROM certificates WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
 });
 
 // Start Express Server

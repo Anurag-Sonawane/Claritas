@@ -9,6 +9,11 @@ db.exec('DROP TABLE IF EXISTS assignments;');
 db.exec('DROP TABLE IF EXISTS enrollments;');
 db.exec('DROP TABLE IF EXISTS courses;');
 db.exec('DROP TABLE IF EXISTS users;');
+db.exec('DROP TABLE IF EXISTS announcements;');
+db.exec('DROP TABLE IF EXISTS tickets;');
+db.exec('DROP TABLE IF EXISTS fee_records;');
+db.exec('DROP TABLE IF EXISTS assessments;');
+db.exec('DROP TABLE IF EXISTS certificates;');
 
 initDatabase();
 
@@ -32,13 +37,90 @@ insertUser.run('student-005', 'sneha.g@claritas.edu', passHash, 'Sneha Gupta', '
 
 // Insert Courses
 const insertCourse = db.prepare(`
-  INSERT INTO courses (id, code, title, department, instructor_id, students_count, term, schedule)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO courses (
+    id, code, title, department, instructor_id, students_count, term, schedule,
+    description, status, category, level, thumbnail_gradient, tags, modules_json,
+    created_at, updated_at, published_at, manager_id, manager_name, total_modules, total_lessons, total_duration
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-insertCourse.run('cs301', 'CS301', 'Data Structures & Algorithms', 'Computer Science', 'faculty-001', 42, 'Fall 2026', 'Mon, Wed 09:00 AM');
-insertCourse.run('cs402', 'CS402', 'Operating Systems & Kernels', 'Computer Science', 'faculty-001', 38, 'Fall 2026', 'Tue, Thu 11:30 AM');
-insertCourse.run('ai501', 'AI501', 'Applied Machine Learning', 'Artificial Intelligence', 'faculty-001', 62, 'Fall 2026', 'Wed, Fri 02:30 PM');
+const dsaModules = JSON.stringify([
+  {
+    id: 'mod-1',
+    title: 'Foundations of DSA',
+    isExpanded: true,
+    lessons: [
+      {
+        id: 'les-1',
+        title: 'Introduction to Algorithms',
+        type: 'text',
+        duration: '15min',
+        contentBlocks: [
+          { id: 'b-1', type: 'text', content: '<h2>Introduction</h2><p>Welcome to CS301. We start with algorithm complexity.</p>' }
+        ]
+      }
+    ]
+  }
+]);
+
+const osModules = JSON.stringify([
+  {
+    id: 'mod-2',
+    title: 'Introduction to Kernels',
+    isExpanded: true,
+    lessons: [
+      {
+        id: 'les-2',
+        title: 'Monolithic vs Microkernels',
+        type: 'text',
+        duration: '20min',
+        contentBlocks: [
+          { id: 'b-2', type: 'text', content: '<h2>Kernel Architectures</h2><p>This lesson explores monolithic and microkernels.</p>' }
+        ]
+      }
+    ]
+  }
+]);
+
+const mlModules = JSON.stringify([
+  {
+    id: 'mod-3',
+    title: 'Machine Learning Basics',
+    isExpanded: true,
+    lessons: [
+      {
+        id: 'les-3',
+        title: 'Supervised Learning Overview',
+        type: 'text',
+        duration: '25min',
+        contentBlocks: [
+          { id: 'b-3', type: 'text', content: '<h2>Supervised Learning</h2><p>Introduction to classification and regression models.</p>' }
+        ]
+      }
+    ]
+  }
+]);
+
+insertCourse.run(
+  'cs301', 'CS301', 'Data Structures & Algorithms', 'Computer Science', 'faculty-001', 42, 'Fall 2026', 'Mon, Wed 09:00 AM',
+  'Master data structures and algorithms, complexity, trees, graphs, and dynamic programming.', 'published', 'Computer Science', 'Intermediate',
+  'linear-gradient(135deg, #667eea, #764ba2)', '["dsa","basics"]', dsaModules,
+  now, now, now, 'user-001', 'Aarav Sharma', 1, 1, '15min'
+);
+
+insertCourse.run(
+  'cs402', 'CS402', 'Operating Systems & Kernels', 'Computer Science', 'faculty-001', 38, 'Fall 2026', 'Tue, Thu 11:30 AM',
+  'Introduction to scheduling, process management, file systems, and operating system design.', 'published', 'Computer Science', 'Advanced',
+  'linear-gradient(135deg, #2af598, #009efd)', '["operating-systems","systems"]', osModules,
+  now, now, now, 'user-001', 'Aarav Sharma', 1, 1, '20min'
+);
+
+insertCourse.run(
+  'ai501', 'AI501', 'Applied Machine Learning', 'Artificial Intelligence', 'faculty-001', 62, 'Fall 2026', 'Wed, Fri 02:30 PM',
+  'Apply regression, classification, clustering algorithms, and neural networks using Python.', 'published', 'Artificial Intelligence', 'Advanced',
+  'linear-gradient(135deg, #f093fb, #f5576c)', '["machine-learning","ai"]', mlModules,
+  now, now, now, 'user-001', 'Aarav Sharma', 1, 1, '25min'
+);
 
 // Insert Enrollments
 const insertEnrollment = db.prepare(`
@@ -119,5 +201,13 @@ const insertAssessment = db.prepare(`
 `);
 insertAssessment.run('ast-1', 'cs301', 'Data Structures Midterm Quiz', 15, 30, 70, 'Active');
 insertAssessment.run('ast-2', 'cs402', 'Operating Systems Kernel Quiz', 20, 45, 75, 'Active');
+
+// Insert Certificates
+const insertCert = db.prepare(`
+  INSERT INTO certificates (id, name, course, rules, last_edited)
+  VALUES (?, ?, ?, ?, ?)
+`);
+insertCert.run('cert-1', 'Course Completion Certificate', 'All Courses', 'Score > 80%', '2026-03-15');
+insertCert.run('cert-2', 'Honor Roll Certificate', 'UI/UX Design', 'Score > 95%', '2026-01-20');
 
 console.log('✅ Database Seeding Complete!');

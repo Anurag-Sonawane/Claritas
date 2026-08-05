@@ -1,207 +1,155 @@
-// ═══════════════════════════════════════════════════════════
-// Claritas Admin — Course & Content API Service
-// Mock API with simulated latency for course management
-// ═══════════════════════════════════════════════════════════
-
 import {
   courses as _coursesSrc, mediaLibrary as _mediaSrc, scormPackages as _scormSrc,
   courseVersions as _versionsSrc, MEDIA_STORAGE_USED, MEDIA_STORAGE_QUOTA,
   COURSE_CATEGORIES, instructors,
 } from '../data/courseMockData.js';
 
-let _courses = JSON.parse(JSON.stringify(_coursesSrc));
-let _media = JSON.parse(JSON.stringify(_mediaSrc));
-let _scorm = JSON.parse(JSON.stringify(_scormSrc));
-let _versions = JSON.parse(JSON.stringify(_versionsSrc));
-let _drafts = {};
+const API_BASE = 'http://localhost:5000/api';
 
-const delay = (ms = 300) => new Promise(r => setTimeout(r, ms + Math.random() * 200));
+function getAuthHeader() {
+  const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // ── Courses CRUD ───────────────────────────────────────────
 
-export async function getCourses({ query = '', status = '', category = '', instructor = '', page = 1, perPage = 12, sortBy = 'updatedAt', sortDir = 'desc' } = {}) {
-  await delay();
-  let f = [..._courses];
-  if (query) { const q = query.toLowerCase(); f = f.filter(c => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)); }
-  if (status) f = f.filter(c => c.status === status);
-  if (category) f = f.filter(c => c.category === category);
-  if (instructor) f = f.filter(c => c.instructors.some(inst => inst.id === instructor));
-
-  f.sort((a, b) => {
-    let va = a[sortBy] || '', vb = b[sortBy] || '';
-    if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
-    if (va < vb) return sortDir === 'asc' ? -1 : 1;
-    if (va > vb) return sortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const total = f.length;
-  const start = (page - 1) * perPage;
-  return { data: f.slice(start, start + perPage), meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
+export async function getCourses({ query = '', status = '', category = '', page = 1, perPage = 12, sortBy = 'updated_at', sortDir = 'desc' } = {}) {
+  const params = new URLSearchParams({ query, status, category, page, perPage, sortBy, sortDir });
+  const res = await fetch(`${API_BASE}/admin/courses?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch courses');
+  return await res.json();
 }
 
 export async function getCourse(courseId) {
-  await delay(200);
-  const c = _courses.find(x => x.id === courseId);
-  if (!c) throw new Error('Course not found');
-  return { data: c };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}`);
+  if (!res.ok) throw new Error('Failed to fetch course');
+  return await res.json();
 }
 
 export async function createCourse(data) {
-  await delay(400);
-  const id = `course-${String(_courses.length + 1).padStart(3, '0')}`;
-  const newCourse = {
-    id, ...data,
-    status: 'draft', enrollmentCount: 0, completionRate: 0,
-    modules: [], totalModules: 0, totalLessons: 0, totalDuration: '0min',
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), publishedAt: null,
-    managerId: 'user-001', managerName: 'Aarav Sharma',
-    thumbnailGradient: 'linear-gradient(135deg, #667eea, #764ba2)',
-    instructors: data.instructorIds ? data.instructorIds.map(iid => instructors.find(i => i.id === iid) || { id: iid, name: 'Unknown' }) : [],
-    tags: data.tags || [],
-  };
-  _courses.unshift(newCourse);
-  _versions[id] = [{ id: `ver-${id}-1`, courseId: id, version: 1, label: 'Initial Draft', author: 'Aarav Sharma', createdAt: new Date().toISOString(), changes: ['Course created'], snapshot: { title: data.title, moduleCount: 0, lessonCount: 0 } }];
-  return { data: newCourse };
+  const res = await fetch(`${API_BASE}/admin/courses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Failed to create course');
+  return await res.json();
 }
 
 export async function updateCourse(courseId, updates) {
-  await delay(300);
-  const idx = _courses.findIndex(c => c.id === courseId);
-  if (idx === -1) throw new Error('Course not found');
-  _courses[idx] = { ..._courses[idx], ...updates, updatedAt: new Date().toISOString() };
-  return { data: _courses[idx] };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) throw new Error('Failed to update course');
+  return await res.json();
 }
 
 export async function deleteCourse(courseId) {
-  await delay(400);
-  _courses = _courses.filter(c => c.id !== courseId);
-  return { success: true };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}`, {
+    method: 'DELETE',
+    headers: getAuthHeader()
+  });
+  if (!res.ok) throw new Error('Failed to delete course');
+  return await res.json();
 }
 
 // ── Module/Lesson CRUD ─────────────────────────────────────
 
 export async function addModule(courseId, moduleData) {
-  await delay(300);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
-  const mod = {
-    id: `module-new-${Date.now()}`, title: moduleData.title || 'New Module',
-    description: '', isExpanded: true, lessons: [],
-  };
-  course.modules.push(mod);
-  course.totalModules = course.modules.length;
-  course.updatedAt = new Date().toISOString();
-  return { data: mod };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ title: moduleData.title })
+  });
+  if (!res.ok) throw new Error('Failed to add module');
+  return await res.json();
 }
 
 export async function reorderModules(courseId, moduleIds) {
-  await delay(200);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
+  const courseRes = await getCourse(courseId);
+  const course = courseRes.data;
   const reordered = moduleIds.map(id => course.modules.find(m => m.id === id)).filter(Boolean);
-  course.modules = reordered;
-  course.updatedAt = new Date().toISOString();
-  return { data: course.modules };
+  return await updateCourse(courseId, { modules: reordered });
 }
 
 export async function addLesson(courseId, moduleId, lessonData) {
-  await delay(300);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
-  const mod = course.modules.find(m => m.id === moduleId);
-  if (!mod) throw new Error('Module not found');
-  const lesson = {
-    id: `lesson-new-${Date.now()}`, title: lessonData.title || 'New Lesson',
-    type: 'text', duration: '0min', isCompleted: false,
-    contentBlocks: [{ id: `block-new-${Date.now()}`, type: 'text', content: '<p>Start writing your lesson content here...</p>' }],
-  };
-  mod.lessons.push(lesson);
-  course.totalLessons = course.modules.reduce((s, m) => s + m.lessons.length, 0);
-  course.updatedAt = new Date().toISOString();
-  return { data: lesson };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}/lessons`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ title: lessonData.title })
+  });
+  if (!res.ok) throw new Error('Failed to add lesson');
+  return await res.json();
 }
 
 export async function reorderLessons(courseId, moduleId, lessonIds) {
-  await delay(200);
-  const course = _courses.find(c => c.id === courseId);
-  const mod = course?.modules.find(m => m.id === moduleId);
+  const courseRes = await getCourse(courseId);
+  const course = courseRes.data;
+  const mod = course.modules.find(m => m.id === moduleId);
   if (!mod) throw new Error('Module not found');
-  mod.lessons = lessonIds.map(id => mod.lessons.find(l => l.id === id)).filter(Boolean);
-  course.updatedAt = new Date().toISOString();
-  return { data: mod.lessons };
+  const reorderedLessons = lessonIds.map(id => mod.lessons.find(l => l.id === id)).filter(Boolean);
+  mod.lessons = reorderedLessons;
+  return await updateCourse(courseId, { modules: course.modules });
 }
 
 export async function updateLesson(courseId, moduleId, lessonId, updates) {
-  await delay(200);
-  const course = _courses.find(c => c.id === courseId);
-  const mod = course?.modules.find(m => m.id === moduleId);
-  const lesson = mod?.lessons.find(l => l.id === lessonId);
-  if (!lesson) throw new Error('Lesson not found');
-  Object.assign(lesson, updates);
-  course.updatedAt = new Date().toISOString();
-  return { data: lesson };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) throw new Error('Failed to update lesson');
+  return await res.json();
 }
 
 export async function deleteModule(courseId, moduleId) {
-  await delay(300);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
-  course.modules = course.modules.filter(m => m.id !== moduleId);
-  course.totalModules = course.modules.length;
-  course.totalLessons = course.modules.reduce((s, m) => s + m.lessons.length, 0);
-  course.updatedAt = new Date().toISOString();
-  return { success: true };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}`, {
+    method: 'DELETE',
+    headers: getAuthHeader()
+  });
+  if (!res.ok) throw new Error('Failed to delete module');
+  return await res.json();
 }
 
 export async function deleteLesson(courseId, moduleId, lessonId) {
-  await delay(200);
-  const course = _courses.find(c => c.id === courseId);
-  const mod = course?.modules.find(m => m.id === moduleId);
-  if (!mod) throw new Error('Module not found');
-  mod.lessons = mod.lessons.filter(l => l.id !== lessonId);
-  course.totalLessons = course.modules.reduce((s, m) => s + m.lessons.length, 0);
-  course.updatedAt = new Date().toISOString();
-  return { success: true };
+  const res = await fetch(`${API_BASE}/admin/courses/${courseId}/modules/${moduleId}/lessons/${lessonId}`, {
+    method: 'DELETE',
+    headers: getAuthHeader()
+  });
+  if (!res.ok) throw new Error('Failed to delete lesson');
+  return await res.json();
 }
 
 // ── Publish Flow ───────────────────────────────────────────
 
 export async function publishCourse(courseId) {
-  await delay(500);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
-  course.status = 'published';
-  course.publishedAt = new Date().toISOString();
-  course.updatedAt = new Date().toISOString();
-  _addVersion(courseId, 'Published course');
-  return { data: course };
+  return await updateCourse(courseId, { status: 'published' });
 }
 
 export async function unpublishCourse(courseId) {
-  await delay(400);
-  const course = _courses.find(c => c.id === courseId);
-  if (!course) throw new Error('Course not found');
-  course.status = 'draft';
-  course.updatedAt = new Date().toISOString();
-  return { data: course };
+  return await updateCourse(courseId, { status: 'draft' });
 }
 
 export async function bulkPublish(courseIds) {
-  await delay(600);
-  courseIds.forEach(id => { const c = _courses.find(x => x.id === id); if (c) { c.status = 'published'; c.publishedAt = new Date().toISOString(); } });
+  for (const id of courseIds) {
+    await publishCourse(id);
+  }
   return { success: true, count: courseIds.length };
 }
 
 export async function bulkUnpublish(courseIds) {
-  await delay(600);
-  courseIds.forEach(id => { const c = _courses.find(x => x.id === id); if (c) c.status = 'draft'; });
+  for (const id of courseIds) {
+    await unpublishCourse(id);
+  }
   return { success: true, count: courseIds.length };
 }
 
 export async function bulkAssignManagers(courseIds, managerId, managerName) {
-  await delay(500);
-  courseIds.forEach(id => { const c = _courses.find(x => x.id === id); if (c) { c.managerId = managerId; c.managerName = managerName; } });
+  for (const id of courseIds) {
+    await updateCourse(id, { managerId, managerName });
+  }
   return { success: true, count: courseIds.length };
 }
 
@@ -337,14 +285,13 @@ function _addVersion(courseId, changeDesc) {
 // ── Autosave / Drafts ──────────────────────────────────────
 
 export async function saveDraft(courseId, draftData) {
-  await delay(150);
-  _drafts[courseId] = { ...draftData, savedAt: new Date().toISOString() };
-  return { data: { savedAt: _drafts[courseId].savedAt } };
+  const res = await updateCourse(courseId, { title: draftData.title, modules: draftData.modules });
+  return { data: { savedAt: new Date().toISOString() } };
 }
 
 export async function getSavedDraft(courseId) {
-  await delay(100);
-  return { data: _drafts[courseId] || null };
+  const res = await getCourse(courseId);
+  return { data: res.data };
 }
 
 // Re-export for convenience
