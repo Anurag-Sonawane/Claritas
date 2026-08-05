@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export default function ProtectedRoute({ children, requireAdmin = false }) {
+export default function ProtectedRoute({ children, requireAdmin = false, allowedRoles = null }) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -19,14 +19,23 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requireAdmin && user.role !== 'admin') {
-    // Role not authorized, divert to their normal dashboard
-    return <Navigate to="/" replace />;
-  }
+  const getDefaultPathForRole = (role) => {
+    if (role === 'admin') return '/admin';
+    if (role === 'faculty') return '/faculty';
+    return '/';
+  };
 
-  if (!requireAdmin && user.role === 'admin') {
-    // Avoid admins getting stuck on student view if they directly navigate, divert them to admin
-    return <Navigate to="/admin" replace />;
+  // If specific roles are specified
+  if (allowedRoles && Array.isArray(allowedRoles)) {
+    if (!allowedRoles.includes(user.role)) {
+      return <Navigate to={getDefaultPathForRole(user.role)} replace />;
+    }
+  } else if (requireAdmin && user.role !== 'admin') {
+    // Legacy admin check
+    return <Navigate to={getDefaultPathForRole(user.role)} replace />;
+  } else if (!allowedRoles && !requireAdmin && user.role !== 'student') {
+    // Unspecified routes default to student view; divert non-students to their respective dashboards
+    return <Navigate to={getDefaultPathForRole(user.role)} replace />;
   }
 
   return children;

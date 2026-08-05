@@ -1,18 +1,35 @@
-import { Calendar as CalendarIcon, Clock, Video, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, Clock, Video, Users, FileText } from 'lucide-react';
+import { api } from '../services/api';
 
 export default function Calendar() {
-  const schedule = [
-    { time: '09:00 AM', duration: '1h 30m', title: 'Data Structures & Algorithms', type: 'Lecture', room: 'Room 402', status: 'completed' },
-    { time: '11:00 AM', duration: '1h', title: 'Calculus III', type: 'Lecture', room: 'Online (Zoom)', status: 'active', link: '#' },
-    { time: '01:00 PM', duration: '2h', title: 'Physics Lab', type: 'Practical', room: 'Lab B', status: 'upcoming' },
-    { time: '03:30 PM', duration: '1h', title: 'Student Council Meeting', type: 'Extracurricular', room: 'Main Hall', status: 'upcoming' }
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCalendar() {
+      try {
+        const data = await api.getStudentCalendar();
+        setEvents(data);
+      } catch (err) {
+        console.warn('Calendar fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadCalendar();
+  }, []);
+
+  const defaultSchedule = [
+    { time: '09:00 AM', duration: '1h 30m', title: 'CS301: Data Structures & Algorithms', type: 'Lecture', room: 'Room 402', status: 'active' },
+    { time: '11:30 AM', duration: '1h', title: 'CS402: Operating Systems & Kernels', type: 'Lecture', room: 'Lab B', status: 'upcoming' },
   ];
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
         <div style={{ padding: 12, background: 'rgba(46, 196, 241, 0.1)', borderRadius: 12, color: 'var(--secondary)' }}><CalendarIcon size={24} /></div>
-        <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Schedule & Timetable</h1>
+        <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Schedule & Academic Calendar</h1>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24 }}>
@@ -20,53 +37,62 @@ export default function Calendar() {
         {/* Today's Agenda Header */}
         <div className="surface" style={{ padding: '24px 32px', borderRadius: 16, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-             <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem' }}>Today's Agenda</h2>
-             <span className="text-muted">Thursday, October 12, 2026</span>
+             <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem' }}>Academic Timetable & Deadlines</h2>
+             <span className="text-muted">Synced with Fall 2026 Academic Term</span>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn-outline">Weekly View</button>
-            <button className="btn-primary">Sync to Google Calendar</button>
+            <button className="btn-primary">Sync Calendar</button>
           </div>
         </div>
 
-        {/* Vertical Timeline */}
+        {/* Live Academic Deadlines Grid */}
+        {events.length > 0 && (
+          <div className="surface" style={{ padding: 24, borderRadius: 16, border: '1px solid var(--glass-border)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--secondary)' }}>Upcoming Deadlines & Exams</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {events.map((ev, i) => (
+                <div key={ev.id || i} style={{ padding: 16, background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 10 }}>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 4 }}>
+                    {ev.type} • {ev.course_code}
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: '1rem', marginBottom: 6 }}>{ev.title}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Clock size={14} /> Due: {ev.date}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Timetable View */}
         <div className="surface" style={{ padding: '40px 32px', borderRadius: 16, border: '1px solid var(--border)', position: 'relative' }}>
-          
-          {/* Vertical Track Line */}
           <div style={{ position: 'absolute', left: '110px', top: '40px', bottom: '40px', width: 2, background: 'var(--glass-border)' }} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
-            {schedule.map((item, i) => (
+            {defaultSchedule.map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: 40, position: 'relative' }}>
-                
-                {/* Time Gutter */}
-                <div style={{ width: '80px', flexShrink: 0, textAlign: 'right', fontWeight: 'bold', color: item.status === 'completed' ? 'var(--muted)' : 'var(--foreground)' }}>
+                <div style={{ width: '80px', flexShrink: 0, textAlign: 'right', fontWeight: 'bold', color: 'var(--foreground)' }}>
                   {item.time}
                 </div>
 
-                {/* Node Dot */}
                 <div style={{ 
                   position: 'absolute', left: '74px', top: '4px', width: 14, height: 14, borderRadius: '50%',
-                  background: item.status === 'active' ? 'var(--secondary)' : (item.status === 'completed' ? 'var(--muted)' : 'var(--background)'),
-                  border: item.status === 'active' ? 'none' : '2px solid var(--glass-border)',
-                  boxShadow: item.status === 'active' ? '0 0 10px var(--secondary)' : 'none',
-                  zIndex: 2
+                  background: 'var(--secondary)', boxShadow: '0 0 10px var(--secondary)', zIndex: 2
                 }} />
 
-                {/* Event Card */}
-                <div className={item.status === 'active' ? 'glow-panel' : ''} style={{ 
+                <div className="glow-panel" style={{ 
                   flex: 1, padding: 24, borderRadius: 12,
-                  background: item.status === 'active' ? 'rgba(46, 196, 241, 0.05)' : 'rgba(255,255,255,0.02)',
-                  border: item.status === 'active' ? '1px solid rgba(46, 196, 241, 0.3)' : '1px solid var(--glass-border)',
-                  opacity: item.status === 'completed' ? 0.6 : 1,
+                  background: 'rgba(46, 196, 241, 0.05)',
+                  border: '1px solid rgba(46, 196, 241, 0.3)',
                   position: 'relative', marginTop: -16
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                      <div>
-                       <div style={{ fontSize: '0.8rem', color: item.status === 'active' ? 'var(--secondary)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, fontWeight: 'bold' }}>
+                       <div style={{ fontSize: '0.8rem', color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, fontWeight: 'bold' }}>
                          {item.type}
                        </div>
-                       <h3 style={{ margin: 0, fontSize: '1.2rem', color: item.status === 'completed' ? 'var(--muted)' : 'var(--foreground)' }}>{item.title}</h3>
+                       <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{item.title}</h3>
                      </div>
                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', color: 'var(--muted)' }}>
                        <Clock size={14} /> {item.duration}
@@ -75,24 +101,13 @@ export default function Calendar() {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, color: 'var(--muted)', fontSize: '0.9rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {item.room.includes('Online') ? <Video size={16}/> : <Users size={16}/>}
-                      {item.room}
+                      <Users size={16}/> {item.room}
                     </span>
                   </div>
-
-                  {item.status === 'active' && item.link && (
-                    <div style={{ marginTop: 24 }}>
-                       <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: '0.9rem' }}>
-                         <Video size={16} /> Join Class Call
-                       </button>
-                    </div>
-                  )}
                 </div>
-
               </div>
             ))}
           </div>
-
         </div>
       </div>
     </div>

@@ -14,122 +14,116 @@ let _importJobs = JSON.parse(JSON.stringify(mockImportJobs));
 // Simulate network latency
 const delay = (ms = 300) => new Promise(resolve => setTimeout(resolve, ms + Math.random() * 200));
 
+const API_BASE = 'http://localhost:5000/api';
+
+function getAuthHeader() {
+  const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // ── Users ──────────────────────────────────────────────────
 
 export async function getUsers({ query = '', role = '', org = '', status = '', page = 1, perPage = 10, sortBy = 'name', sortDir = 'asc' } = {}) {
-  await delay();
-
-  let filtered = [..._users];
-
-  if (query) {
-    const q = query.toLowerCase();
-    filtered = filtered.filter(u =>
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.organization.toLowerCase().includes(q)
-    );
+  try {
+    const params = new URLSearchParams({ query, role, org, status, page, perPage, sortBy, sortDir });
+    const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch users');
+    return await res.json();
+  } catch (err) {
+    console.warn('Falling back to local cache:', err);
+    let filtered = [..._users];
+    if (query) {
+      const q = query.toLowerCase();
+      filtered = filtered.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+    }
+    const total = filtered.length;
+    const start = (page - 1) * perPage;
+    return { data: filtered.slice(start, start + perPage), meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
   }
-  if (role) filtered = filtered.filter(u => u.roleId === role);
-  if (org) filtered = filtered.filter(u => u.organization === org);
-  if (status) filtered = filtered.filter(u => u.status === status);
-
-  // Sort
-  filtered.sort((a, b) => {
-    let valA = a[sortBy] || '';
-    let valB = b[sortBy] || '';
-    if (typeof valA === 'string') valA = valA.toLowerCase();
-    if (typeof valB === 'string') valB = valB.toLowerCase();
-    if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return sortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const total = filtered.length;
-  const start = (page - 1) * perPage;
-  const data = filtered.slice(start, start + perPage);
-
-  return { data, meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
 }
 
 export async function getUser(userId) {
-  await delay(200);
-  const user = _users.find(u => u.id === userId);
+  const { data } = await getUsers({ perPage: 100 });
+  const user = data.find(u => u.id === userId);
   if (!user) throw new Error('User not found');
   return { data: user };
 }
 
 export async function createUser(userData) {
-  await delay(400);
-  const id = `user-${String(_users.length + 1).padStart(3, '0')}`;
-  const role = _roles.find(r => r.id === userData.roleId);
-  const newUser = {
-    id,
-    ...userData,
-    roleName: role?.name || 'Unknown',
-    avatarUrl: `https://i.pravatar.cc/150?u=admin${_users.length + 1}`,
-    status: 'invited',
-    lastActiveAt: null,
-    createdAt: new Date().toISOString(),
-    enrollments: [],
-    activityTimeline: [],
-  };
-  _users.unshift(newUser);
-  _addAuditLog('user.created', 'user', id, newUser.name);
-  return { data: newUser };
+  const res = await fetch(`${API_BASE}/admin/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(userData),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create user');
+  return data;
 }
 
 export async function updateUser(userId, updates) {
-  await delay(350);
-  const idx = _users.findIndex(u => u.id === userId);
-  if (idx === -1) throw new Error('User not found');
-
-  if (updates.roleId) {
-    const role = _roles.find(r => r.id === updates.roleId);
-    updates.roleName = role?.name || 'Unknown';
-  }
-
-  _users[idx] = { ..._users[idx], ...updates };
-  _addAuditLog('user.updated', 'user', userId, _users[idx].name);
-  return { data: _users[idx] };
+  const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(updates),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update user');
+  return data;
 }
 
 export async function deleteUser(userId, hard = false) {
-  await delay(400);
-  const idx = _users.findIndex(u => u.id === userId);
-  if (idx === -1) throw new Error('User not found');
-  const name = _users[idx].name;
-
-  if (hard) {
-    _users.splice(idx, 1);
-  } else {
-    _users[idx].status = 'deleted';
-  }
-  _addAuditLog('user.deleted', 'user', userId, name);
+  const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() },
+  });
+  if (!res.ok) throw new Error('Failed to delete user');
   return { success: true };
 }
 
 export async function suspendUser(userId, reason = '') {
-  await delay(300);
-  const idx = _users.findIndex(u => u.id === userId);
-  if (idx === -1) throw new Error('User not found');
-  _users[idx].status = 'suspended';
-  _addAuditLog('user.suspended', 'user', userId, _users[idx].name, reason);
-  return { data: _users[idx] };
+  const res = await fetch(`${API_BASE}/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ status: 'suspended' }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to suspend user');
+  return data;
 }
 
 export async function reactivateUser(userId) {
-  await delay(300);
-  const idx = _users.findIndex(u => u.id === userId);
-  if (idx === -1) throw new Error('User not found');
-  _users[idx].status = 'active';
-  _addAuditLog('user.reactivated', 'user', userId, _users[idx].name);
-  return { data: _users[idx] };
+  const res = await fetch(`${API_BASE}/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ status: 'active' }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to reactivate user');
+  return data;
+}
+
+export async function approveUser(userId) {
+  const res = await fetch(`${API_BASE}/admin/users/${userId}/approve`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to approve user');
+  return data;
+}
+
+export async function rejectUser(userId) {
+  const res = await fetch(`${API_BASE}/admin/users/${userId}/reject`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to reject user');
+  return data;
 }
 
 export async function impersonateUser(userId, reason) {
-  await delay(200);
-  const user = _users.find(u => u.id === userId);
-  if (!user) throw new Error('User not found');
+  const { data: user } = await getUser(userId);
   _addAuditLog('user.impersonated', 'user', userId, user.name, reason);
   return { data: user };
 }

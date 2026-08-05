@@ -67,7 +67,7 @@ export default function AdminLayout() {
           </div>
 
           <div className="topbar-right">
-            <Link to="/admin/users" className="btn-primary btn-sm" style={{ textDecoration: 'none' }}>
+            <Link to="/admin/users" state={{ openAdd: true }} className="btn-primary btn-sm" style={{ textDecoration: 'none' }}>
               <Plus size={16} /> Invite User
             </Link>
 
@@ -118,26 +118,25 @@ export default function AdminLayout() {
             <Outlet context={{ impersonation }} />
           </PageWrapper>
         </main>
+        {/* ── Floating Bottom Taskbar ── */}
+        <nav className="admin-bottom-taskbar">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            const active = isActive(link);
+            return (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`admin-nav-link ${active ? 'active' : ''}`}
+                title={link.label}
+              >
+                <Icon size={20} />
+                <span className="admin-nav-tooltip">{link.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
-
-      {/* ── Floating Bottom Taskbar ── */}
-      <nav className="admin-bottom-taskbar">
-        {navLinks.map((link) => {
-          const Icon = link.icon;
-          const active = isActive(link);
-          return (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`admin-nav-link ${active ? 'active' : ''}`}
-              title={link.label}
-            >
-              <Icon size={20} />
-              <span className="admin-nav-tooltip">{link.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
 
       {/* Impersonation Reason Prompt */}
       {impersonation.showReasonPrompt && (

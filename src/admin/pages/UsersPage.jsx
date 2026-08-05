@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useOutletContext, useLocation } from 'react-router-dom';
 import { UserPlus, Upload, Download, Eye, MoreHorizontal, UserX, UserCheck, Trash2, Edit } from 'lucide-react';
 import useAdminUsers from '../hooks/useAdminUsers.js';
 import AdminTable from '../components/AdminTable.jsx';
@@ -11,7 +11,8 @@ import UserDetailSlideOver from '../components/UserDetailSlideOver.jsx';
 import InviteModal from '../components/InviteModal.jsx';
 import BulkImportModal from '../components/BulkImportModal.jsx';
 import { roles } from '../data/adminMockData.js';
-import { getOrganizations } from '../services/adminApi.js';
+import { getOrganizations, createUser, approveUser, rejectUser } from '../services/adminApi.js';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 const allColumns = [
   { key: 'name', label: 'Name', sortable: true, skelWidth: '60%' },
@@ -42,6 +43,7 @@ export default function UsersPage() {
   } = useAdminUsers();
 
   const { impersonation } = useOutletContext();
+  const location = useLocation();
 
   const [slideOverUser, setSlideOverUser] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -65,6 +67,7 @@ export default function UsersPage() {
       key: 'status',
       label: 'All Statuses',
       options: [
+        { value: 'pending', label: 'Pending Approval' },
         { value: 'active', label: 'Active' },
         { value: 'suspended', label: 'Suspended' },
         { value: 'invited', label: 'Invited' },
@@ -97,8 +100,39 @@ export default function UsersPage() {
       : undefined,
     }));
 
+  const handleApprove = async (userId, close) => {
+    try {
+      await approveUser(userId);
+      refresh();
+      close();
+    } catch (err) {
+      alert('Failed to approve: ' + err.message);
+    }
+  };
+
+  const handleReject = async (userId, close) => {
+    try {
+      await rejectUser(userId);
+      refresh();
+      close();
+    } catch (err) {
+      alert('Failed to reject: ' + err.message);
+    }
+  };
+
   const renderActions = (row, close) => (
     <>
+      {row.status === 'pending' && (
+        <>
+          <button className="actions-menu-item" style={{ color: '#10b981', fontWeight: 600 }} onClick={() => handleApprove(row.id, close)}>
+            <CheckCircle2 size={15} /> Approve Account
+          </button>
+          <button className="actions-menu-item danger" onClick={() => handleReject(row.id, close)}>
+            <XCircle size={15} /> Reject Request
+          </button>
+          <div className="actions-menu-divider" />
+        </>
+      )}
       <button className="actions-menu-item" onClick={() => { setSlideOverUser(row); close(); }}>
         <Edit size={15} /> Edit Profile
       </button>
@@ -107,26 +141,66 @@ export default function UsersPage() {
       </button>
       <div className="actions-menu-divider" />
       {row.status === 'active' ? (
-        <button className="actions-menu-item" onClick={async () => { await suspendUser(row.id, 'Admin action'); close(); }}>
+        <button className="actions-menu-item" onClick={async () => { await suspendUser(row.id, 'Admin action'); close(); refresh(); }}>
           <UserX size={15} /> Suspend
         </button>
       ) : row.status === 'suspended' ? (
-        <button className="actions-menu-item" onClick={async () => { await reactivateUser(row.id); close(); }}>
+        <button className="actions-menu-item" onClick={async () => { await reactivateUser(row.id); close(); refresh(); }}>
           <UserCheck size={15} /> Reactivate
         </button>
       ) : null}
-      <button className="actions-menu-item danger" onClick={async () => { if (confirm(`Delete ${row.name}?`)) { await deleteUser(row.id); close(); } }}>
+      <button className="actions-menu-item danger" onClick={async () => { if (confirm(`Delete ${row.name}?`)) { await deleteUser(row.id); close(); refresh(); } }}>
         <Trash2 size={15} /> Delete
       </button>
     </>
   );
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState('student');
+  const [newDept, setNewDept] = useState('Computer Science');
+  const [newPass, setNewPass] = useState('password');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.openAdd) {
+      setShowAddModal(true);
+    }
+    if (location.state?.openInvite) {
+      setShowInviteModal(true);
+    }
+  }, [location]);
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    if (!newName || !newEmail) return;
+    setIsSubmitting(true);
+    try {
+      await createUser({
+        name: newName,
+        email: newEmail,
+        role: newRole,
+        department: newDept,
+        password: newPass
+      });
+      setShowAddModal(false);
+      setNewName('');
+      setNewEmail('');
+      refresh();
+    } catch (err) {
+      alert('Error creating user: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div>
       {/* Page Header */}
       <div className="admin-page-header">
         <h1>
-          Users
+          Master User Management
           <span className="count-badge">{meta.total}</span>
         </h1>
         <div className="admin-page-actions">
@@ -134,11 +208,8 @@ export default function UsersPage() {
           <button className="btn-outline btn-sm" onClick={() => setShowImportModal(true)}>
             <Upload size={15} /> Import CSV
           </button>
-          <button className="btn-outline btn-sm">
-            <Download size={15} /> Export
-          </button>
-          <button className="btn-primary" onClick={() => setShowInviteModal(true)}>
-            <UserPlus size={16} /> Invite User
+          <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+            <UserPlus size={16} /> Add New User
           </button>
         </div>
       </div>
@@ -165,9 +236,6 @@ export default function UsersPage() {
           </button>
           <button className="btn-outline btn-sm" style={{ borderColor: 'rgba(248,113,113,0.3)', color: 'var(--status-deleted)' }} onClick={() => { if (confirm(`Delete ${selectedIds.length} user(s)?`)) bulkDelete(); }}>
             <Trash2 size={14} /> Delete
-          </button>
-          <button className="btn-outline btn-sm">
-            <Download size={14} /> Export Selected
           </button>
         </div>
       )}
@@ -200,6 +268,88 @@ export default function UsersPage() {
           />
         </div>
       </div>
+
+      {/* Add User Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16
+        }}>
+          <div style={{
+            background: '#0f172a', border: '1px solid var(--glass-border)', borderRadius: 16,
+            width: '100%', maxWidth: 520, padding: 24, display: 'flex', flexDirection: 'column', gap: 16
+          }}>
+            <h3 style={{ margin: 0, fontSize: '1.25rem' }}>Add New User Account</h3>
+            <form onSubmit={handleAddUser} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Prof. Alexander Vance"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. vance@claritas.edu"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>User Role</label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
+                  >
+                    <option value="student">Student</option>
+                    <option value="faculty">Faculty / Instructor</option>
+                    <option value="admin">Super Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Department</label>
+                  <input
+                    type="text"
+                    value={newDept}
+                    onChange={(e) => setNewDept(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Initial Password</label>
+                <input
+                  type="text"
+                  value={newPass}
+                  onChange={(e) => setNewPass(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Slide Over */}
       <UserDetailSlideOver

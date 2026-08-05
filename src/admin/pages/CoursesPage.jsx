@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Search, LayoutGrid, List, Plus, Upload, Download, Trash2, Globe, GlobeLock, BookOpen } from 'lucide-react';
 import useCourses from '../hooks/useCourses.js';
 import CourseCard from '../components/CourseCard.jsx';
@@ -49,8 +50,15 @@ const TABLE_COLUMNS = [
 
 export default function CoursesPage() {
   const cm = useCourses();
+  const location = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', description: '', category: 'Computer Science', level: 'Beginner' });
+
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      setShowCreate(true);
+    }
+  }, [location]);
 
   const handleCreate = async () => {
     if (!newCourse.title.trim()) return;
@@ -166,7 +174,7 @@ export default function CoursesPage() {
 
       {/* Create Course Modal */}
       {showCreate && (
-        <Modal onClose={() => setShowCreate(false)} title="Create New Course" size="md">
+        <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Create New Course" size="md">
           <div className="create-course-form">
             <label>
               Course Title <span style={{ color: 'var(--primary)' }}>*</span>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Users, BookOpen, GraduationCap, Clock, AlertTriangle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { getKpis } from '../services/analyticsMockService.js';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [kpis, setKpis] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -43,10 +45,10 @@ export default function AdminDashboard() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 32 }}>
-        <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}><Users size={16} /> Invite User</button>
-        <button className="btn-outline" style={{ flex: 1, justifyContent: 'center' }}><BookOpen size={16} /> Create Course</button>
-        <button className="btn-outline" style={{ flex: 1, justifyContent: 'center' }}><AlertTriangle size={16} /> View Alerts</button>
-        <button className="btn-outline" style={{ flex: 1, justifyContent: 'center' }}><ArrowUpRight size={16} /> New Report</button>
+        <button className="btn-primary" onClick={() => navigate('/admin/users', { state: { openAdd: true } })} style={{ flex: 1, justifyContent: 'center' }}><Users size={16} /> Invite User</button>
+        <button className="btn-outline" onClick={() => navigate('/admin/courses', { state: { openCreate: true } })} style={{ flex: 1, justifyContent: 'center' }}><BookOpen size={16} /> Create Course</button>
+        <button className="btn-outline" onClick={() => navigate('/admin/health')} style={{ flex: 1, justifyContent: 'center' }}><AlertTriangle size={16} /> View Alerts</button>
+        <button className="btn-outline" onClick={() => navigate('/admin/reports')} style={{ flex: 1, justifyContent: 'center' }}><ArrowUpRight size={16} /> New Report</button>
       </div>
 
       <div className="kpi-grid">

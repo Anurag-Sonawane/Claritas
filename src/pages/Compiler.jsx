@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Play, RotateCcw, Save, Code2, Terminal as TerminalIcon, Settings } from 'lucide-react';
+import { api } from '../services/api';
 
 export default function Compiler() {
   const [language, setLanguage] = useState('javascript');
@@ -7,34 +8,18 @@ export default function Compiler() {
   const [output, setOutput] = useState('');
   const [isRunning, setIsRunning] = useState(false);
 
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsRunning(true);
-    setOutput('> Compiling environment...\\n');
-    
-    setTimeout(() => {
-      if (language === 'javascript') {
-        try {
-          // Because this is a frontend mockup, we can aggressively override console.log briefly to capture eval output
-          // In a real sandbox, this would be terrible, but it's perfect for a simulated frontend!
-          let capturedLogs = '';
-          const originalLog = console.log;
-          console.log = (...args) => {
-            capturedLogs += args.join(' ') + '\\n';
-          };
-          
-          eval(code); // Evaluate the mock JS
-          
-          console.log = originalLog; // Restore
-          setOutput(`> Executed successfully.\\n> Output:\\n\${capturedLogs || 'No output.'}`);
-        } catch (e) {
-          setOutput(`> Execution Error:\\n\${e.toString()}`);
-        }
-      } else {
-        // Mock output for non-JS
-        setOutput(`> Compiling \${language} binary...\\n> Execution successful.\\n> System Mock: Program exited with code 0.`);
-      }
+    setOutput('> Transmitting payload to Claritas API Execution Service...\n');
+
+    try {
+      const res = await api.runCompiler(code, language);
+      setOutput(`> Status: ${res.status} (${res.executionTime})\n> Output:\n${res.output}`);
+    } catch (err) {
+      setOutput(`> Execution Error:\n${err.message}`);
+    } finally {
       setIsRunning(false);
-    }, 1200);
+    }
   };
 
   const handleReset = () => {

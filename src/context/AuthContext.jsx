@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { api } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -6,57 +7,63 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check localStorage on mount
+  // Check sessionStorage and localStorage on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('claritas_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    async function initAuth() {
+      const sessionUser = sessionStorage.getItem('claritas_user');
+      const localUser = localStorage.getItem('claritas_user');
+
+      let parsedUser = null;
+      if (sessionUser) {
+        try { parsedUser = JSON.parse(sessionUser); } catch (e) { sessionStorage.removeItem('claritas_user'); }
+      } else if (localUser) {
+        try {
+          const parsed = JSON.parse(localUser);
+          if (parsed && parsed.rememberMe) parsedUser = parsed;
+          else localStorage.removeItem('claritas_user');
+        } catch (e) { localStorage.removeItem('claritas_user'); }
+      }
+
+      if (parsedUser) {
+        setUser(parsedUser);
+      }
+      setIsLoading(false);
     }
-    setIsLoading(false);
+    initAuth();
   }, []);
 
-  const login = async (email, password) => {
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+  const login = async (email, password, rememberMe = false) => {
+    try {
+      const { user: authenticatedUser, token } = await api.login(email, password);
+      const userWithPersistence = { ...authenticatedUser, rememberMe };
 
-    if (password !== 'password') {
-      throw new Error('Invalid credentials. Hint: use "password"');
+      setUser(userWithPersistence);
+
+      localStorage.removeItem('claritas_user');
+      sessionStorage.removeItem('claritas_user');
+      localStorage.removeItem('claritas_token');
+      sessionStorage.removeItem('claritas_token');
+
+      if (rememberMe) {
+        localStorage.setItem('claritas_user', JSON.stringify(userWithPersistence));
+        localStorage.setItem('claritas_token', token);
+      } else {
+        sessionStorage.setItem('claritas_user', JSON.stringify(userWithPersistence));
+        sessionStorage.setItem('claritas_token', token);
+      }
+
+      return userWithPersistence;
+    } catch (err) {
+      throw new Error(err.message || 'Authentication failed');
     }
-
-    let authenticatedUser = null;
-
-    if (email === 'admin@claritas.edu') {
-      authenticatedUser = {
-        id: 'user-001',
-        name: 'Aarav Sharma',
-        email: 'admin@claritas.edu',
-        role: 'admin',
-        roleName: 'Super Admin',
-        avatarUrl: 'https://ui-avatars.com/api/?name=Aarav+Sharma&background=f87171&color=fff&rounded=true',
-      };
-    } else if (email === 'student@claritas.edu') {
-      authenticatedUser = {
-        id: 'student-001',
-        name: 'Anurag Sonawane',
-        email: 'student@claritas.edu',
-        role: 'student',
-        roleName: 'Student',
-        avatarUrl: 'https://ui-avatars.com/api/?name=Anurag+Sonawane&background=2ec4f1&color=fff&rounded=true',
-      };
-    } else {
-      throw new Error('User not found. Use admin@claritas.edu or student@claritas.edu');
-    }
-
-    setUser(authenticatedUser);
-    localStorage.setItem('claritas_user', JSON.stringify(authenticatedUser));
-    return authenticatedUser;
   };
 
   const logout = async () => {
-    // Simulate slight delay
-    await new Promise((resolve) => setTimeout(resolve, 200));
     setUser(null);
     localStorage.removeItem('claritas_user');
+    sessionStorage.removeItem('claritas_user');
+    localStorage.removeItem('claritas_token');
+    sessionStorage.removeItem('claritas_token');
   };
 
   return (

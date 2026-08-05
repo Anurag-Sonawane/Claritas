@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Eye, UserX, UserCheck, Trash2, Save } from 'lucide-react';
+import { X, Eye, UserX, UserCheck, Trash2, Save, Maximize2, Minimize2, CheckCircle2, XCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge.jsx';
 import { roles, PERMISSIONS_CATALOG } from '../data/adminMockData.js';
 import * as api from '../services/adminApi.js';
@@ -11,6 +11,7 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
   const [activeTab, setActiveTab] = useState('Profile');
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [userAudit, setUserAudit] = useState([]);
 
   useEffect(() => {
@@ -39,6 +40,26 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
     }
   };
 
+  const handleApprove = async () => {
+    try {
+      await api.approveUser(user.id);
+      onUpdate?.();
+      onClose();
+    } catch (err) {
+      alert('Failed to approve: ' + err.message);
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await api.rejectUser(user.id);
+      onUpdate?.();
+      onClose();
+    } catch (err) {
+      alert('Failed to reject: ' + err.message);
+    }
+  };
+
   const handleSuspend = async () => {
     await api.suspendUser(user.id, 'Admin action from detail panel');
     onUpdate?.();
@@ -64,8 +85,21 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
   return (
     <>
       <div className="slideover-backdrop" onClick={onClose} />
-      <div className="slideover-panel">
-        <button className="slideover-close" onClick={onClose}><X size={16} /></button>
+      <div className={`slideover-panel ${isExpanded ? 'expanded' : ''}`}>
+        
+        {/* Top Control Bar: Resize Toggle & Close */}
+        <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 10 }}>
+          <button
+            className="slideover-icon-btn"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? "Make Panel Smaller" : "Make Panel Bigger"}
+          >
+            {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+          <button className="slideover-icon-btn" onClick={onClose} title="Close Panel">
+            <X size={16} />
+          </button>
+        </div>
 
         {/* Header */}
         <div className="slideover-header">
@@ -74,7 +108,7 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
             <div className="slideover-user-info">
               <h2>{user.name}</h2>
               <div className="slideover-user-meta">{user.email}</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <StatusBadge status={user.status} />
                 <span className="role-badge" style={{
                   background: `var(${userRole?.colorVar}-bg, rgba(167,139,250,0.12))`,
@@ -84,19 +118,41 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
             </div>
           </div>
 
+          {/* Quick Action Buttons */}
           <div className="slideover-quick-actions">
-            <button className="btn-outline btn-sm" onClick={() => { onImpersonate?.(user); onClose(); }}>
-              <Eye size={14} /> Impersonate
-            </button>
-            {user.status === 'active' ? (
-              <button className="btn-outline btn-sm" onClick={handleSuspend}>
-                <UserX size={14} /> Suspend
-              </button>
-            ) : user.status === 'suspended' ? (
-              <button className="btn-outline btn-sm" onClick={handleReactivate}>
-                <UserCheck size={14} /> Reactivate
-              </button>
-            ) : null}
+            {user.status === 'pending' ? (
+              <>
+                <button
+                  className="btn-primary btn-sm"
+                  onClick={handleApprove}
+                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981', color: '#fff', fontWeight: 600 }}
+                >
+                  <CheckCircle2 size={15} /> Approve Account
+                </button>
+                <button
+                  className="btn-outline btn-sm"
+                  onClick={handleReject}
+                  style={{ borderColor: 'rgba(248,113,113,0.4)', color: '#f87171' }}
+                >
+                  <XCircle size={15} /> Reject Request
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn-outline btn-sm" onClick={() => { onImpersonate?.(user); onClose(); }}>
+                  <Eye size={14} /> Impersonate
+                </button>
+                {user.status === 'active' ? (
+                  <button className="btn-outline btn-sm" onClick={handleSuspend}>
+                    <UserX size={14} /> Suspend
+                  </button>
+                ) : user.status === 'suspended' ? (
+                  <button className="btn-outline btn-sm" onClick={handleReactivate}>
+                    <UserCheck size={14} /> Reactivate
+                  </button>
+                ) : null}
+              </>
+            )}
             <button className="btn-outline btn-sm" style={{ borderColor: 'rgba(248,113,113,0.3)', color: 'var(--status-deleted)' }} onClick={handleDelete}>
               <Trash2 size={14} /> Delete
             </button>

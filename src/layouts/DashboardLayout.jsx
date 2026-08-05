@@ -51,24 +51,24 @@ export default function DashboardLayout() {
             <Outlet />
           </PageWrapper>
         </div>
-      </main>
 
-      <nav className="bottom-taskbar">
-        {NavigationLinks.map((link) => {
-          const Icon = link.icon;
-          const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
-          return (
-            <Link 
-              key={link.path} 
-              to={link.path} 
-              className={`nav-link ${isActive ? 'active' : ''}`}
-              title={link.label}
-            >
-              <Icon size={20} />
-            </Link>
-          )
-        })}
-      </nav>
+        <nav className="bottom-taskbar">
+          {NavigationLinks.map((link) => {
+            const Icon = link.icon;
+            const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
+            return (
+              <Link 
+                key={link.path} 
+                to={link.path} 
+                className={`nav-link ${isActive ? 'active' : ''}`}
+                title={link.label}
+              >
+                <Icon size={20} />
+              </Link>
+            )
+          })}
+        </nav>
+      </main>
     </div>
   );
 }

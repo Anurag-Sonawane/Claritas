@@ -1,9 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Clock, BatteryCharging, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { api } from '../services/api';
 
 export default function Attendance() {
-  const [washroomStatus, setWashroomStatus] = useState('idle'); // idle, active
-  const [timeRemaining, setTimeRemaining] = useState(600); // 10 minutes (600s)
+  const [washroomStatus, setWashroomStatus] = useState('idle');
+  const [timeRemaining, setTimeRemaining] = useState(600);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadAttendance() {
+      try {
+        const data = await api.getStudentAttendance();
+        setRecords(data);
+      } catch (err) {
+        console.warn('Attendance fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAttendance();
+  }, []);
 
   const requestPass = () => {
     setWashroomStatus('active');
@@ -25,6 +42,9 @@ export default function Attendance() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const presentCount = records.filter(r => r.status === 'Present' || r.status === 'present').length;
+  const overallRate = records.length ? Math.round((presentCount / records.length) * 100) : 92;
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
@@ -43,42 +63,41 @@ export default function Attendance() {
               <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem' }}>You are maintaining good standing.</p>
             </div>
             
-            {/* CSS Conic Gradient Donut Mock */}
             <div style={{ 
               width: 100, height: 100, borderRadius: '50%', 
-              background: 'conic-gradient(var(--secondary) 0% 92%, rgba(255,255,255,0.05) 92% 100%)',
+              background: `conic-gradient(var(--secondary) 0% ${overallRate}%, rgba(255,255,255,0.05) ${overallRate}% 100%)`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 0 20px rgba(46, 196, 241, 0.2)'
             }}>
               <div style={{ width: 80, height: 80, background: 'var(--surface)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.4rem' }}>
-                92%
+                {overallRate}%
               </div>
             </div>
           </div>
 
           {/* Chronological Grid */}
           <div className="surface" style={{ padding: 32, borderRadius: 16, border: '1px solid var(--border)' }}>
-             <h3 style={{ margin: '0 0 24px 0' }}>Recent Logins</h3>
+             <h3 style={{ margin: '0 0 24px 0' }}>Live Class Attendance Log</h3>
              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-               {[
-                 { date: 'Today, 9:00 AM', status: 'Present', type: 'Campus WiFi' },
-                 { date: 'Yesterday, 8:45 AM', status: 'Present', type: 'Biometric' },
-                 { date: 'Monday, 10:00 AM', status: 'Late', type: 'Campus WiFi' },
-               ].map((log, i) => (
-                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottom: i !== 2 ? '1px solid var(--glass-border)' : 'none' }}>
-                   <div>
-                     <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{log.date}</div>
-                     <div style={{ fontSize: '0.8rem', color: 'var(--muted)'}}>Verified via {log.type}</div>
+               {records.length > 0 ? (
+                 records.map((log, i) => (
+                   <div key={log.id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottom: i !== records.length - 1 ? '1px solid var(--glass-border)' : 'none' }}>
+                     <div>
+                       <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{log.course_code} • {log.lecture_date}</div>
+                       <div style={{ fontSize: '0.8rem', color: 'var(--muted)'}}>Course: {log.course_title || 'Computer Science'}</div>
+                     </div>
+                     <span style={{ 
+                       padding: '4px 10px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 'bold',
+                       background: log.status === 'Present' || log.status === 'present' ? 'rgba(46, 196, 241, 0.1)' : 'rgba(255, 90, 54, 0.1)',
+                       color: log.status === 'Present' || log.status === 'present' ? 'var(--secondary)' : 'var(--primary)'
+                     }}>
+                       {log.status}
+                     </span>
                    </div>
-                   <span style={{ 
-                     padding: '4px 10px', borderRadius: 20, fontSize: '0.8rem', fontWeight: 'bold',
-                     background: log.status === 'Present' ? 'rgba(46, 196, 241, 0.1)' : 'rgba(255, 90, 54, 0.1)',
-                     color: log.status === 'Present' ? 'var(--secondary)' : 'var(--primary)'
-                   }}>
-                     {log.status}
-                   </span>
-                 </div>
-               ))}
+                 ))
+               ) : (
+                 <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 20 }}>No attendance records recorded yet.</div>
+               )}
              </div>
           </div>
         </div>
@@ -117,7 +136,6 @@ export default function Attendance() {
             </div>
           )}
 
-          {/* Warning notice */}
           <div style={{ marginTop: 32, padding: 16, background: 'rgba(255, 255, 255, 0.02)', borderRadius: 8, display: 'flex', gap: 12, fontSize: '0.85rem', color: 'var(--muted)' }}>
             <AlertTriangle size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
             Failure to return before the timer expires will automatically mark your status as 'Absent' for the remainder of the session unless overridden by the professor.

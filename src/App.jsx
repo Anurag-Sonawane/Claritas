@@ -47,6 +47,14 @@ import WebhooksPage from './admin/pages/WebhooksPage';
 import GdprPage from './admin/pages/GdprPage';
 import SystemHealth from './admin/pages/SystemHealth';
 
+// Faculty imports
+import FacultyLayout from './faculty/layouts/FacultyLayout';
+import FacultyDashboard from './faculty/pages/FacultyDashboard';
+import MyClassesPage from './faculty/pages/MyClassesPage';
+import FacultyGradingPage from './faculty/pages/FacultyGradingPage';
+import FacultyAttendancePage from './faculty/pages/FacultyAttendancePage';
+import FacultyAssignmentsPage from './faculty/pages/FacultyAssignmentsPage';
+
 function App() {
   return (
     <AuthProvider>
@@ -59,36 +67,59 @@ function App() {
           <Route 
             path="/" 
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['student']}>
                 <DashboardLayout />
               </ProtectedRoute>
             }
           >
             <Route index element={<Home />} />
-          <Route path="assignments" element={<Assignments />} />
-          <Route path="assessments" element={<Assessments />} />
-          <Route path="attendance" element={<Attendance />} />
-          <Route path="calendar" element={<Calendar />} />
-          <Route path="announcements" element={<Announcements />} />
-          <Route path="fees" element={<Fees />} />
-          <Route path="complaints" element={<Complaints />} />
-          <Route path="proctored-test" element={<ProctoredTest />} />
-          <Route path="compiler" element={<Compiler />} />
-          <Route path="about" element={<About />} />
-          
-          <Route path="ai">
-             <Route index element={<AiHub />} />
-             <Route path="summary" element={<AiSummary />} />
-             <Route path="flashcards" element={<AiFlashcards />} />
-             <Route path="ppt" element={<AiPptMaker />} />
+            <Route path="assignments" element={<Assignments />} />
+            <Route path="assessments" element={<Assessments />} />
+            <Route path="attendance" element={<Attendance />} />
+            <Route path="calendar" element={<Calendar />} />
+            <Route path="announcements" element={<Announcements />} />
+            <Route path="fees" element={<Fees />} />
+            <Route path="complaints" element={<Complaints />} />
+            <Route path="proctored-test" element={<ProctoredTest />} />
+            <Route path="compiler" element={<Compiler />} />
+            <Route path="about" element={<About />} />
+            
+            <Route path="ai">
+               <Route index element={<AiHub />} />
+               <Route path="summary" element={<AiSummary />} />
+               <Route path="flashcards" element={<AiFlashcards />} />
+               <Route path="ppt" element={<AiPptMaker />} />
+            </Route>
           </Route>
-        </Route>
+
+          {/* Faculty Dashboard */}
+          <Route 
+            path="/faculty" 
+            element={
+              <ProtectedRoute allowedRoles={['faculty', 'admin']}>
+                <FacultyLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<FacultyDashboard />} />
+            <Route path="classes" element={<MyClassesPage />} />
+            <Route path="grading" element={<FacultyGradingPage />} />
+            <Route path="attendance" element={<FacultyAttendancePage />} />
+            <Route path="assignments" element={<FacultyAssignmentsPage />} />
+            <Route path="compiler" element={<Compiler />} />
+            <Route path="ai">
+              <Route index element={<AiHub />} />
+              <Route path="ppt" element={<AiPptMaker />} />
+              <Route path="summary" element={<AiSummary />} />
+              <Route path="flashcards" element={<AiFlashcards />} />
+            </Route>
+          </Route>
 
           {/* Admin Dashboard */}
           <Route 
             path="/admin" 
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <AdminLayout />
               </ProtectedRoute>
             }

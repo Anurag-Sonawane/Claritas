@@ -1,34 +1,52 @@
+import { useState, useEffect } from 'react';
 import { CheckCircle, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { api } from '../services/api';
 
 export default function Assessments() {
-  const tests = [
-    { title: 'Software Engineering MCQ', subject: 'CS 302', duration: '45 mins', date: 'Tomorrow, 10:00 AM', status: 'pending' },
-    { title: 'Database Systems Final', subject: 'CS 305', duration: '90 mins', date: 'Oct 15, 2:00 PM', status: 'pending' },
-    { title: 'Data Structures Quiz', subject: 'CS 201', duration: '30 mins', date: 'Completed', status: 'completed' },
-  ];
+  const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadTests() {
+      try {
+        const data = await api.getAssessments();
+        setTests(data);
+      } catch (err) {
+        console.warn('Assessments fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadTests();
+  }, []);
 
   return (
     <div>
-      <h1 style={{ color: 'var(--secondary)' }}>Assessments</h1>
-      <p className="text-muted">View and take your scheduled MCQ tests.</p>
+      <h1 style={{ color: 'var(--secondary)' }}>Active Quizzes & Assessments</h1>
+      <p className="text-muted">View and attempt live course assessments with proctored monitoring.</p>
 
       <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {tests.map((test, i) => (
-          <div key={i} className="surface" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {test.status === 'completed' ? <CheckCircle size={18} color="#2EC4F1" /> : <Clock size={18} color="#FF5A36" />}
-                {test.title}
-              </h3>
-              <span className="text-muted" style={{ fontSize: '0.9rem' }}>{test.subject} • {test.duration} • {test.date}</span>
+        {tests.length > 0 ? (
+          tests.map((test, i) => (
+            <div key={test.id || i} className="surface glow-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={18} color="#FF5A36" />
+                  {test.title}
+                </h3>
+                <span className="text-muted" style={{ fontSize: '0.9rem' }}>
+                  Course: {test.course_code} • Duration: {test.duration_mins} mins • Passing Score: {test.passing_score}%
+                </span>
+              </div>
+              <Link to="/proctored-test">
+                <button className="btn-primary">Launch Proctored Quiz</button>
+              </Link>
             </div>
-            {test.status === 'pending' ? (
-              <button>Take Test</button>
-            ) : (
-              <button style={{ backgroundColor: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--foreground)' }}>View Results</button>
-            )}
-          </div>
-        ))}
+          ))
+        ) : (
+          <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 20 }}>No active assessments right now.</div>
+        )}
       </div>
     </div>
   );
