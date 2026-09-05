@@ -1,10 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'node:path';
 import { env, corsOrigins } from './config/env.js';
 import { initDatabase, db } from './db.js';
 import { runSeed } from './seed.js';
 import { securityHeaders, apiLimiter } from './middleware/security.js';
+import { getStorageInfo } from './services/storageService.js';
 
 import authRoutes from './routes/authRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
@@ -60,6 +62,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+// ── Static Assets (Local file storage uploads) ──
+app.use('/uploads', express.static(path.resolve(process.cwd(), env.UPLOAD_DIR)));
+
 if (env.NODE_ENV !== 'test') {
   app.use('/api', apiLimiter);
 }
@@ -71,7 +76,8 @@ app.get('/api/health', (req, res) => {
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
     db: db.provider === 'postgres' ? 'PostgreSQL (Cloud Pool Connected)' : 'SQLite WAL Mode Online with Indexes & Foreign Keys',
-    provider: db.provider
+    provider: db.provider,
+    storage: getStorageInfo()
   });
 });
 

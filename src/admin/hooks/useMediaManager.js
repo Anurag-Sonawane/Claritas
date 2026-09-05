@@ -28,17 +28,26 @@ export default function useMediaManager() {
     setUploading(true);
     setUploadProgress(0);
     try {
-      const r = await api.uploadMedia(file, ({ percent }) => setUploadProgress(percent));
+      const r = await api.uploadMedia(file, ({ percent }) => setUploadProgress(percent), activeFolder || 'Course Assets');
       await fetchMedia();
       return r.data;
     } catch (e) { console.error(e); return null; }
     finally { setUploading(false); setUploadProgress(0); }
   };
 
+  const deleteFile = async (id) => {
+    try {
+      await api.deleteMediaItem(id);
+      if (selectedFile?.id === id) setSelectedFile(null);
+      await fetchMedia();
+      return true;
+    } catch (e) { console.error(e); return false; }
+  };
+
   return {
     files, folders, storage, loading, fetchMedia,
     activeFolder, setActiveFolder, query, setQuery,
     typeFilter, setTypeFilter, selectedFile, setSelectedFile,
-    uploading, uploadProgress, uploadFile,
+    uploading, uploadProgress, uploadFile, deleteFile,
   };
 }

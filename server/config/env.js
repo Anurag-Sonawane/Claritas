@@ -18,6 +18,15 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().default(200),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+  STORAGE_PROVIDER: z.enum(['auto', 'local', 'cloudinary', 'supabase']).default('auto'),
+  CLOUDINARY_URL: z.string().default(''),
+  CLOUDINARY_CLOUD_NAME: z.string().default(''),
+  CLOUDINARY_API_KEY: z.string().default(''),
+  CLOUDINARY_API_SECRET: z.string().default(''),
+  SUPABASE_URL: z.string().default(''),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
+  SUPABASE_BUCKET_NAME: z.string().default('claritas-media'),
+  UPLOAD_DIR: z.string().default('uploads'),
 });
 
 const parsed = envSchema.safeParse(process.env);

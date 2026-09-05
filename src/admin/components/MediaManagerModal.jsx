@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Search, Upload, Folder, FileText, Image, Video, Table, Archive, HardDrive, Check } from 'lucide-react';
+import { X, Search, Upload, Folder, FileText, Image, Video, Table, Archive, HardDrive, Check, ExternalLink, Trash2 } from 'lucide-react';
 import useMediaManager from '../hooks/useMediaManager.js';
 import Modal from './Modal.jsx';
 
@@ -41,11 +41,27 @@ export default function MediaManagerModal({ onClose, onSelect }) {
 
           {/* Storage meter */}
           <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid var(--glass-border)' }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><HardDrive size={12} /> Storage</div>
-            <div style={{ height: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${(mm.storage.used / mm.storage.quota) * 100}%`, background: 'var(--secondary)', borderRadius: 3 }} />
+            <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><HardDrive size={12} /> Storage</span>
+              <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: 4, background: 'rgba(46,196,241,0.1)', color: 'var(--secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
+                {mm.storage?.provider || 'local'}
+              </span>
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 4 }}>{mm.storage.used}GB / {mm.storage.quota}GB</div>
+            {(() => {
+              const usedBytes = mm.storage?.usedBytes || 0;
+              const quotaBytes = mm.storage?.quotaBytes || (10 * 1024 * 1024 * 1024);
+              const percent = Math.min(100, Math.max(1, Math.round((usedBytes / quotaBytes) * 100)));
+              return (
+                <>
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${percent}%`, background: 'var(--secondary)', borderRadius: 3 }} />
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 4 }}>
+                    {mm.storage?.used || '0 MB'} / {mm.storage?.quota || '10 GB'}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -160,7 +176,33 @@ export default function MediaManagerModal({ onClose, onSelect }) {
               <div style={{ color: 'var(--muted)' }}>Folder: {mm.selectedFile.folder}</div>
               <div style={{ color: 'var(--muted)', marginTop: 6, fontSize: '0.72rem', wordBreak: 'break-all' }}>CDN: {mm.selectedFile.cdnUrl}</div>
             </div>
-            <button className="btn-primary btn-sm" style={{ width: '100%', marginTop: 'auto' }} onClick={() => onSelect?.(mm.selectedFile)}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
+              {mm.selectedFile.cdnUrl && (
+                <a
+                  href={mm.selectedFile.cdnUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-outline btn-sm"
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, textDecoration: 'none', fontSize: '0.75rem', padding: '6px 8px' }}
+                >
+                  <ExternalLink size={12} /> View
+                </a>
+              )}
+              <button
+                type="button"
+                className="btn-outline btn-sm"
+                title="Delete file"
+                style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', padding: '6px 8px' }}
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to delete "${mm.selectedFile.name}"?`)) {
+                    mm.deleteFile(mm.selectedFile.id);
+                  }
+                }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+            <button className="btn-primary btn-sm" style={{ width: '100%' }} onClick={() => onSelect?.(mm.selectedFile)}>
               <Check size={14} /> Select File
             </button>
           </div>
@@ -170,7 +212,12 @@ export default function MediaManagerModal({ onClose, onSelect }) {
   );
 }
 
-function formatSize(kb) {
-  if (kb < 1024) return `${kb}KB`;
-  return `${(kb / 1024).toFixed(1)}MB`;
+function formatSize(bytes) {
+  if (!bytes && bytes !== 0) return '—';
+  const b = Number(bytes);
+  if (isNaN(b)) return '—';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(b / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

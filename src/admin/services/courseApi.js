@@ -162,36 +162,76 @@ export async function getMediaLibrary({ folder = '', query = '', type = '' } = {
   return await res.json();
 }
 
-export async function uploadMedia(file, onProgress) {
-  onProgress?.({ loaded: 10, total: 10, percent: 100 });
-  const res = await fetch(`${API_BASE}/media`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify({
-      name: file.name,
-      size: file.size,
-      type: file.name?.split('.').pop() || 'pdf',
-      mime: file.type || 'application/pdf',
-      cdnUrl: `https://cdn.claritas.edu/media/${encodeURIComponent(file.name)}`
-    })
+export async function uploadMedia(file, onProgress, folder = 'Course Assets') {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}/media`);
+    const authHeaders = getAuthHeader();
+    for (const [key, val] of Object.entries(authHeaders)) {
+      xhr.setRequestHeader(key, val);
+    }
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress({ loaded: e.loaded, total: e.total, percent });
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          resolve(parsed);
+        } catch {
+          resolve({ success: true });
+        }
+      } else {
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          reject(new Error(parsed.error || 'Failed to upload media'));
+        } catch {
+          reject(new Error(`Failed to upload media (${xhr.status})`));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during media upload'));
+    xhr.send(formData);
   });
-  if (!res.ok) throw new Error('Failed to upload media');
+}
+
+export async function deleteMediaItem(id) {
+  const res = await fetch(`${API_BASE}/media/${id}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() }
+  });
+  if (!res.ok) throw new Error('Failed to delete media item');
   return await res.json();
 }
 
 // ── SCORM/xAPI ─────────────────────────────────────────────
 
 export async function uploadScormPackage(courseId, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (courseId) formData.append('courseId', courseId);
+
   const res = await fetch(`${API_BASE}/scorm/upload`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify({
-      courseId,
-      fileName: file.name,
-      fileSize: file.size || 50000
-    })
+    headers: { ...getAuthHeader() },
+    body: formData
   });
-  if (!res.ok) throw new Error('Failed to upload SCORM package');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to upload SCORM package');
+  }
   return await res.json();
 }
 

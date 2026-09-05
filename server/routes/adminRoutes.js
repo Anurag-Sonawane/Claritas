@@ -1,7 +1,20 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
 import { db } from '../db.js';
 import { authenticateToken, requireRole, recordAuditLog } from '../middleware/auth.js';
+import { uploadFile, deleteFile, getStorageInfo } from '../services/storageService.js';
+import { validateScormZip } from '../services/scormService.js';
+
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 }
+});
+
+const scormUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
 
 const router = express.Router();
 
@@ -400,6 +413,11 @@ router.post('/courses/:id/rollback', recordAuditLog('COURSE_ROLLBACK', req => `R
   }
 });
 
+// ── Storage Service Info ──
+router.get('/storage/info', (req, res) => {
+  res.json({ data: getStorageInfo() });
+});
+
 // ── Media Library ──
 router.get('/media', async (req, res) => {
   try {
@@ -414,7 +432,12 @@ router.get('/media', async (req, res) => {
     sql += ' ORDER BY created_at DESC';
     const items = await db.all(sql, params);
     const folderRows = await db.all('SELECT folder FROM media_library');
-    const folders = [...new Set(folderRows.map(m => m.folder))];
+    const folders = [...new Set(folderRows.map(m => m.folder).filter(Boolean))];
+
+    const totalBytesRow = await db.get('SELECT SUM(size) as total_size FROM media_library');
+    const totalBytes = Number(totalBytesRow?.total_size || 0);
+    const usedMB = (totalBytes / (1024 * 1024)).toFixed(2);
+    const storageInfo = getStorageInfo();
 
     res.json({
       data: items.map(m => ({
@@ -424,27 +447,67 @@ router.get('/media', async (req, res) => {
         usedIn: JSON.parse(m.used_in_json || '[]')
       })),
       folders,
-      storage: { used: '1.2 GB', quota: '10 GB' }
+      storage: {
+        used: `${usedMB} MB`,
+        usedBytes: totalBytes,
+        quota: '10 GB',
+        quotaBytes: 10 * 1024 * 1024 * 1024,
+        provider: storageInfo.provider
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/media', async (req, res) => {
+router.post('/media', mediaUpload.single('file'), async (req, res) => {
   try {
-    const { name, folder = 'Course Assets', type = 'pdf', mime = 'application/pdf', size = 50000, cdnUrl } = req.body;
+    let name, folder, type, mime, size, cdnUrl, thumbnailUrl;
+
+    if (req.file) {
+      name = req.file.originalname;
+      folder = req.body.folder || 'Course Assets';
+      mime = req.file.mimetype || 'application/octet-stream';
+      size = req.file.size;
+      const ext = (name.split('.').pop() || 'bin').toLowerCase();
+      type = ext;
+
+      const uploadResult = await uploadFile({
+        buffer: req.file.buffer,
+        originalname: name,
+        mimetype: mime,
+        folder
+      });
+
+      cdnUrl = uploadResult.cdnUrl;
+      thumbnailUrl = uploadResult.thumbnailUrl;
+    } else {
+      name = req.body.name || 'asset.pdf';
+      folder = req.body.folder || 'Course Assets';
+      type = req.body.type || (name.split('.').pop() || 'pdf').toLowerCase();
+      mime = req.body.mime || 'application/pdf';
+      size = Number(req.body.size) || 50000;
+      cdnUrl = req.body.cdnUrl || `https://cdn.claritas.edu/media/${name}`;
+      thumbnailUrl = req.body.thumbnailUrl || null;
+    }
+
     const id = `media-${Date.now()}`;
     const now = new Date().toISOString();
-    const resolvedUrl = cdnUrl || `https://cdn.claritas.edu/media/${name || 'asset.pdf'}`;
 
     await db.run(`
-      INSERT INTO media_library (id, name, folder, type, mime, size, cdn_url, uploaded_by, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, name || 'asset.pdf', folder, type, mime, size, resolvedUrl, req.user.name || 'Admin', now]);
+      INSERT INTO media_library (id, name, folder, type, mime, size, cdn_url, thumbnail_url, uploaded_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, name, folder, type, mime, size, cdnUrl, thumbnailUrl, req.user?.name || 'Admin', now]);
 
     const created = await db.get('SELECT * FROM media_library WHERE id = ?', id);
-    res.status(201).json({ data: { ...created, cdnUrl: created.cdn_url, usedIn: [] } });
+    res.status(201).json({
+      data: {
+        ...created,
+        cdnUrl: created.cdn_url,
+        thumbnailUrl: created.thumbnail_url,
+        usedIn: []
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -452,7 +515,11 @@ router.post('/media', async (req, res) => {
 
 router.delete('/media/:id', async (req, res) => {
   try {
-    await db.run('DELETE FROM media_library WHERE id = ?', req.params.id);
+    const item = await db.get('SELECT * FROM media_library WHERE id = ?', req.params.id);
+    if (item) {
+      await deleteFile({ cdnUrl: item.cdn_url, key: item.cdn_url });
+      await db.run('DELETE FROM media_library WHERE id = ?', req.params.id);
+    }
     res.json({ success: true, message: 'Media item deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -492,18 +559,82 @@ router.get('/scorm', async (req, res) => {
   }
 });
 
-router.post('/scorm/upload', async (req, res) => {
+router.post('/scorm/upload', scormUpload.single('file'), async (req, res) => {
   try {
-    const { courseId, fileName = 'package.zip', fileSize = 50000 } = req.body;
-    const id = `scorm-${Date.now()}`;
-    const now = new Date().toISOString();
+    let courseId, fileName, fileSize;
 
-    await db.run(`
-      INSERT INTO scorm_packages (id, course_id, file_name, title, version, type, status, sco_count, file_size, errors_json, warnings_json, created_at, validated_at)
-      VALUES (?, ?, ?, ?, '1.0', 'SCORM 2004', 'valid', 4, ?, '[]', '[]', ?, ?)
-    `, [id, courseId || null, fileName, fileName.replace('.zip', ''), fileSize, now, now]);
+    if (req.file) {
+      fileName = req.file.originalname;
+      fileSize = req.file.size;
+      courseId = req.body.courseId || null;
 
-    res.status(201).json({ data: { jobId: id } });
+      const validation = validateScormZip(req.file.buffer, fileName);
+      const status = validation.valid ? 'valid' : 'invalid';
+
+      const uploadResult = await uploadFile({
+        buffer: req.file.buffer,
+        originalname: fileName,
+        mimetype: 'application/zip',
+        folder: 'scorm'
+      });
+
+      const id = `scorm-${Date.now()}`;
+      const now = new Date().toISOString();
+
+      await db.run(`
+        INSERT INTO scorm_packages (
+          id, course_id, file_name, title, version, type, status, sco_count,
+          file_size, errors_json, warnings_json, created_at, validated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        id,
+        courseId,
+        fileName,
+        validation.title,
+        validation.version,
+        validation.type,
+        status,
+        validation.scoCount,
+        fileSize,
+        JSON.stringify(validation.errors || []),
+        JSON.stringify(validation.warnings || []),
+        now,
+        now
+      ]);
+
+      res.status(201).json({
+        data: {
+          jobId: id,
+          fileName,
+          title: validation.title,
+          status,
+          version: validation.version,
+          type: validation.type,
+          scoCount: validation.scoCount,
+          packageUrl: uploadResult.cdnUrl,
+          errors: validation.errors,
+          warnings: validation.warnings
+        }
+      });
+    } else {
+      courseId = req.body.courseId || null;
+      fileName = req.body.fileName || 'package.zip';
+      fileSize = Number(req.body.fileSize) || 50000;
+
+      const id = `scorm-${Date.now()}`;
+      const now = new Date().toISOString();
+
+      await db.run(`
+        INSERT INTO scorm_packages (
+          id, course_id, file_name, title, version, type, status, sco_count,
+          file_size, errors_json, warnings_json, created_at, validated_at
+        )
+        VALUES (?, ?, ?, ?, '1.0', 'SCORM 2004', 'valid', 4, ?, '[]', '[]', ?, ?)
+      `, [id, courseId, fileName, fileName.replace('.zip', ''), fileSize, now, now]);
+
+      res.status(201).json({ data: { jobId: id } });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

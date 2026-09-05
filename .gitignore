@@ -32,3 +32,9 @@ lint-results.json
 lint-summary.json
 coverage/
 
+# Local File Storage Uploads
+uploads/*
+uploads/**/*
+!uploads/.gitkeep
+
+

@@ -29,7 +29,12 @@ export default function ScormUploader({ courseId, onClose }) {
     try {
       const r = await api.uploadScormPackage(courseId, file);
       setActiveJobId(r.data.jobId);
-      startPolling(r.data.jobId);
+      if (r.data.status === 'valid' || r.data.status === 'invalid') {
+        setJobData(r.data);
+        api.getScormPackages(courseId).then(r2 => setPackages(r2.data));
+      } else {
+        startPolling(r.data.jobId);
+      }
     } catch(err) { console.error(err); }
     finally { setUploading(false); }
   };
@@ -152,8 +157,12 @@ export default function ScormUploader({ courseId, onClose }) {
   );
 }
 
-function formatSize(kb) {
-  if (!kb) return '—';
-  if (kb < 1024) return `${kb}KB`;
-  return `${(kb / 1024).toFixed(1)}MB`;
+function formatSize(bytes) {
+  if (!bytes && bytes !== 0) return '—';
+  const b = Number(bytes);
+  if (isNaN(b)) return '—';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(b / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
