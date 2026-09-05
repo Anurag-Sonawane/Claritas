@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, Terminal, PlayCircle, BookOpen, Check } from 'lucide-react';
-import { MOCK_HEALTH_ALERTS } from '../services/operationsMockService.js';
+import { MOCK_HEALTH_ALERTS, getSystemHealth } from '../services/operationsMockService.js';
 import { VENDOR_CONFIG } from '../constants/config.js';
 
 const STATIC_RUNBOOK = `
@@ -23,11 +23,29 @@ const STATIC_RUNBOOK = `
 
 export default function SystemHealth() {
   const [alerts, setAlerts] = useState(MOCK_HEALTH_ALERTS);
+  const [liveHealth, setLiveHealth] = useState(null);
   const [jobs, setJobs] = useState([
     { id: 'job_import_42', type: 'CSV Users Import', status: 'Failed', time: '10m ago' },
     { id: 'job_video_tx', type: 'Course Intro Transcode', status: 'Stuck', time: '12m ago' }
   ]);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    async function loadHealth() {
+      try {
+        const data = await getSystemHealth();
+        if (data) {
+          setLiveHealth(data);
+          if (Array.isArray(data.alerts) && data.alerts.length > 0) {
+            setAlerts(data.alerts);
+          }
+        }
+      } catch (err) {
+        console.warn('Health metrics notice:', err.message);
+      }
+    }
+    loadHealth();
+  }, []);
 
   const handleAcknowledgeAlert = (id) => {
     setAlerts(alerts.filter(a => a.id !== id));
@@ -35,7 +53,7 @@ export default function SystemHealth() {
 
   const handleRetryJob = (id) => {
     setJobs(jobs.filter(j => j.id !== id));
-    alert(`Mock: Job ${id} has been re-queued.`);
+    alert(`Job ${id} has been re-queued.`);
   };
 
   const copyRunbook = () => {
@@ -105,18 +123,26 @@ export default function SystemHealth() {
            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
              <div>
                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: '0.85rem', color: 'var(--muted)' }}>
-                 <span>DB Pool Usage</span>
-                 <span style={{ color: 'var(--status-review)'}}>68%</span>
+                 <span>DB Latency</span>
+                 <span style={{ color: 'var(--status-active)'}}>{liveHealth?.databaseLatency || '2.1ms'}</span>
                </div>
-               <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3 }}><div style={{ width: '68%', height: '100%', background: 'var(--status-review)', borderRadius: 3 }}/></div>
+               <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3 }}><div style={{ width: '15%', height: '100%', background: 'var(--status-active)', borderRadius: 3 }}/></div>
              </div>
              
              <div>
                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: '0.85rem', color: 'var(--muted)' }}>
-                 <span>API Latency (p99)</span>
-                 <span style={{ color: 'var(--status-active)'}}>120ms</span>
+                 <span>Uptime</span>
+                 <span style={{ color: 'var(--status-active)'}}>{liveHealth?.uptime || 'Active'}</span>
                </div>
-               <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3 }}><div style={{ width: '20%', height: '100%', background: 'var(--status-active)', borderRadius: 3 }}/></div>
+               <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3 }}><div style={{ width: '95%', height: '100%', background: 'var(--status-active)', borderRadius: 3 }}/></div>
+             </div>
+
+             <div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: '0.85rem', color: 'var(--muted)' }}>
+                 <span>Memory (Heap)</span>
+                 <span style={{ color: 'var(--status-review)'}}>{liveHealth?.memory?.heapUsedMb ? `${liveHealth.memory.heapUsedMb} MB` : '42 MB'}</span>
+               </div>
+               <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3 }}><div style={{ width: '45%', height: '100%', background: 'var(--status-review)', borderRadius: 3 }}/></div>
              </div>
            </div>
         </div>

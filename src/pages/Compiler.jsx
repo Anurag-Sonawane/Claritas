@@ -28,11 +28,11 @@ export default function Compiler() {
   };
 
   // Generate pseudo-line numbers
-  const lineCount = code.split('\\n').length;
+  const lineCount = code.split('\n').length;
   const lines = Array.from({ length: Math.max(15, lineCount) }, (_, i) => i + 1);
 
   return (
-    <div style={{ height: 'calc(100vh - 140px)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: 'calc(100vh - 220px)', minHeight: '520px', display: 'flex', flexDirection: 'column', paddingBottom: '16px' }}>
       
       {/* Sandbox Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexShrink: 0 }}>

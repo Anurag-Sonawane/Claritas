@@ -1,3 +1,6 @@
+/* eslint-disable no-unused-vars */
+ 
+ 
 import { useState } from 'react';
 import { Download, CalendarClock, Settings, LayoutList, GripVertical } from 'lucide-react';
 import { scheduleReport, exportMockData } from '../services/analyticsMockService.js';

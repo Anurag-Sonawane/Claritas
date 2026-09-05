@@ -4,8 +4,6 @@ import { api } from '../services/api';
 
 export default function Announcements() {
   const [notices, setNotices] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     async function loadAnnouncements() {
       try {
@@ -13,9 +11,7 @@ export default function Announcements() {
         setNotices(data);
       } catch (err) {
         console.warn('Announcements fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      } 
     }
     loadAnnouncements();
   }, []);

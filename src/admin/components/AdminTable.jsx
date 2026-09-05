@@ -115,6 +115,7 @@ export default function AdminTable({
 
 function ActionsMenu({ renderActions, row }) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -125,13 +126,22 @@ function ActionsMenu({ renderActions, row }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const handleToggle = () => {
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUp(spaceBelow < 240);
+    }
+    setOpen(prev => !prev);
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="actions-trigger" onClick={() => setOpen(!open)}>
+      <button className="actions-trigger" onClick={handleToggle} aria-label="Row actions">
         <MoreVertical size={16} />
       </button>
       {open && (
-        <div className="actions-menu">
+        <div className={`actions-menu ${openUp ? 'open-up' : ''}`}>
           {renderActions(row, () => setOpen(false))}
         </div>
       )}

@@ -8,8 +8,6 @@ export default function Assignments() {
   const [submissionText, setSubmissionText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
-  const [loading, setLoading] = useState(true);
-
   const fetchAssignments = async () => {
     try {
       const data = await api.getAssignments();
@@ -19,9 +17,7 @@ export default function Assignments() {
       }
     } catch (err) {
       console.warn('Assignments fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
+    } 
   };
 
   useEffect(() => {

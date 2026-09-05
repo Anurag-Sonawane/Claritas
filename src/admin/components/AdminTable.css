@@ -206,14 +206,23 @@
   position: absolute;
   right: 0;
   top: 100%;
+  margin-top: 4px;
   min-width: 180px;
   background: var(--surface);
   border: 1px solid var(--glass-border);
   border-radius: 10px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-  z-index: 20;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  z-index: 50;
   padding: 6px;
   animation: menuSlideIn var(--duration-fast) var(--ease-out-expo);
+}
+
+.actions-menu.open-up {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 6px;
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.55);
 }
 
 .actions-menu-item {

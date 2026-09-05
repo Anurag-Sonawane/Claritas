@@ -30,7 +30,7 @@ export default function ScormUploader({ courseId, onClose }) {
       const r = await api.uploadScormPackage(courseId, file);
       setActiveJobId(r.data.jobId);
       startPolling(r.data.jobId);
-    } catch (err) { console.error(err); }
+    } catch(err) { console.error(err); }
     finally { setUploading(false); }
   };
 
@@ -44,7 +44,7 @@ export default function ScormUploader({ courseId, onClose }) {
           clearInterval(pollRef.current);
           api.getScormPackages(courseId).then(r2 => setPackages(r2.data));
         }
-      } catch (err) { clearInterval(pollRef.current); }
+      } catch { clearInterval(pollRef.current); }
     }, 1500);
   };
 

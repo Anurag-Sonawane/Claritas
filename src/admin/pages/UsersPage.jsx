@@ -375,7 +375,11 @@ export default function UsersPage() {
 }
 
 function formatRelative(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr || dateStr === 'Never' || dateStr === '—') return 'Never';
+  const timestamp = new Date(dateStr).getTime();
+  if (isNaN(timestamp)) return 'Never';
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return 'Just now';
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;

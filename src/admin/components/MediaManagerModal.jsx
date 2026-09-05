@@ -40,7 +40,7 @@ export default function MediaManagerModal({ onClose, onSelect }) {
           ))}
 
           {/* Storage meter */}
-          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid var(--glass-border)', marginTop: 16 }}>
+          <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid var(--glass-border)' }}>
             <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><HardDrive size={12} /> Storage</div>
             <div style={{ height: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${(mm.storage.used / mm.storage.quota) * 100}%`, background: 'var(--secondary)', borderRadius: 3 }} />

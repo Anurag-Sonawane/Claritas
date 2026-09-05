@@ -6,8 +6,6 @@ export default function Attendance() {
   const [washroomStatus, setWashroomStatus] = useState('idle');
   const [timeRemaining, setTimeRemaining] = useState(600);
   const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     async function loadAttendance() {
       try {
@@ -15,9 +13,7 @@ export default function Attendance() {
         setRecords(data);
       } catch (err) {
         console.warn('Attendance fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      } 
     }
     loadAttendance();
   }, []);

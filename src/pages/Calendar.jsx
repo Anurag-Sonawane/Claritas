@@ -1,34 +1,53 @@
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, Video, Users, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Users, BookOpen } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function Calendar() {
+  const [courses, setCourses] = useState([]);
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadCalendar() {
       try {
         const data = await api.getStudentCalendar();
-        setEvents(data);
+        const courseList = Array.isArray(data) ? data : (data?.courses || []);
+        setCourses(courseList);
+
+        const deadlines = courseList.map((c, i) => ({
+          id: c.id || `ev-${i}`,
+          title: `${c.title} - Course Evaluation`,
+          course_code: c.code,
+          type: 'Class Session',
+          date: c.schedule || 'Scheduled Weekly'
+        }));
+        setEvents(deadlines);
       } catch (err) {
         console.warn('Calendar fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      } 
     }
     loadCalendar();
   }, []);
 
-  const defaultSchedule = [
-    { time: '09:00 AM', duration: '1h 30m', title: 'CS301: Data Structures & Algorithms', type: 'Lecture', room: 'Room 402', status: 'active' },
-    { time: '11:30 AM', duration: '1h', title: 'CS402: Operating Systems & Kernels', type: 'Lecture', room: 'Lab B', status: 'upcoming' },
-  ];
+  const defaultSchedule = courses.length > 0
+    ? courses.map((c, idx) => ({
+        time: idx === 0 ? '09:00 AM' : idx === 1 ? '11:30 AM' : '02:00 PM',
+        duration: '1h 30m',
+        title: `${c.code}: ${c.title}`,
+        type: 'Lecture Session',
+        room: `Room ${300 + idx * 10}`,
+        status: 'active'
+      }))
+    : [
+        { time: '09:00 AM', duration: '1h 30m', title: 'CS301: Data Structures & Algorithms', type: 'Lecture', room: 'Room 402', status: 'active' },
+        { time: '11:30 AM', duration: '1h', title: 'CS402: Operating Systems & Kernels', type: 'Lecture', room: 'Lab B', status: 'upcoming' },
+      ];
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-        <div style={{ padding: 12, background: 'rgba(46, 196, 241, 0.1)', borderRadius: 12, color: 'var(--secondary)' }}><CalendarIcon size={24} /></div>
+        <div style={{ padding: 12, background: 'rgba(46, 196, 241, 0.1)', borderRadius: 12, color: 'var(--secondary)' }}>
+          <CalendarIcon size={24} />
+        </div>
         <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Schedule & Academic Calendar</h1>
       </div>
 
@@ -38,17 +57,17 @@ export default function Calendar() {
         <div className="surface" style={{ padding: '24px 32px', borderRadius: 16, border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
              <h2 style={{ margin: '0 0 4px 0', fontSize: '1.4rem' }}>Academic Timetable & Deadlines</h2>
-             <span className="text-muted">Synced with Fall 2026 Academic Term</span>
+             <span className="text-muted">Synced with Active Academic Term</span>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn-primary">Sync Calendar</button>
+            <button className="btn-primary" onClick={() => window.location.reload()}>Sync Calendar</button>
           </div>
         </div>
 
         {/* Live Academic Deadlines Grid */}
         {events.length > 0 && (
           <div className="surface" style={{ padding: 24, borderRadius: 16, border: '1px solid var(--glass-border)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--secondary)' }}>Upcoming Deadlines & Exams</h3>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--secondary)' }}>Enrolled Course Deadlines & Lectures</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
               {events.map((ev, i) => (
                 <div key={ev.id || i} style={{ padding: 16, background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 10 }}>
@@ -57,7 +76,7 @@ export default function Calendar() {
                   </div>
                   <div style={{ fontWeight: 600, fontSize: '1rem', marginBottom: 6 }}>{ev.title}</div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Clock size={14} /> Due: {ev.date}
+                    <Clock size={14} /> Schedule: {ev.date}
                   </div>
                 </div>
               ))}

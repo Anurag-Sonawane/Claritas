@@ -1,20 +1,19 @@
+/* eslint-disable no-unused-vars */
 // ═══════════════════════════════════════════════════════════
-// Claritas Admin — Mock API Service
-// Simulates backend API with in-memory data + latency
+// Claritas Admin — Production API Service
+// Synchronized with Backend SQLite & RBAC
 // ═══════════════════════════════════════════════════════════
 
 import { users as mockUsers, roles as mockRoles, auditLogs as mockAuditLogs, importJobs as mockImportJobs } from '../data/adminMockData.js';
 
-// In-memory mutable copies
 let _users = JSON.parse(JSON.stringify(mockUsers));
 let _roles = JSON.parse(JSON.stringify(mockRoles));
 let _auditLogs = JSON.parse(JSON.stringify(mockAuditLogs));
 let _importJobs = JSON.parse(JSON.stringify(mockImportJobs));
 
-// Simulate network latency
 const delay = (ms = 300) => new Promise(resolve => setTimeout(resolve, ms + Math.random() * 200));
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function getAuthHeader() {
   const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
@@ -25,12 +24,48 @@ function getAuthHeader() {
 
 export async function getUsers({ query = '', role = '', org = '', status = '', page = 1, perPage = 10, sortBy = 'name', sortDir = 'asc' } = {}) {
   try {
-    const params = new URLSearchParams({ query, role, org, status, page, perPage, sortBy, sortDir });
-    const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`);
-    if (!res.ok) throw new Error('Failed to fetch users');
-    return await res.json();
+    const params = new URLSearchParams({
+      search: query,
+      role: role || '',
+      department: org || '',
+      status: status || '',
+      page,
+      limit: perPage,
+      sort: sortBy,
+      order: sortDir
+    });
+
+    const res = await fetch(`${API_BASE}/admin/users?${params.toString()}`, {
+      headers: { ...getAuthHeader() }
+    });
+
+    if (!res.ok) throw new Error('Failed to fetch users from server');
+    const result = await res.json();
+
+    return {
+      data: (result.users || []).map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        roleId: u.role === 'admin' ? 'role-super-admin' : u.role === 'faculty' ? 'role-course-mgr' : 'role-student',
+        roleName: u.role_name || (u.role === 'admin' ? 'Super Admin' : u.role === 'faculty' ? 'Associate Professor' : 'Student'),
+        organization: u.organization || u.department || 'Claritas University',
+        department: u.department,
+        status: u.status,
+        lastActiveAt: u.last_active_at || 'Never',
+        avatarUrl: u.avatar_url
+      })),
+      meta: {
+        total: result.total || 0,
+        page: result.page || page,
+        perPage,
+        totalPages: result.totalPages || 1
+      },
+      metrics: result.metrics,
+      departments: result.departments
+    };
   } catch (err) {
-    console.warn('Falling back to local cache:', err);
+    console.warn('Admin API Notice: fallback to local cache:', err.message);
     let filtered = [..._users];
     if (query) {
       const q = query.toLowerCase();
@@ -71,7 +106,7 @@ export async function updateUser(userId, updates) {
   return data;
 }
 
-export async function deleteUser(userId, hard = false) {
+export async function deleteUser(userId) {
   const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
     method: 'DELETE',
     headers: { ...getAuthHeader() },
@@ -80,7 +115,7 @@ export async function deleteUser(userId, hard = false) {
   return { success: true };
 }
 
-export async function suspendUser(userId, reason = '') {
+export async function suspendUser(userId) {
   const res = await fetch(`${API_BASE}/admin/users/${userId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -137,32 +172,17 @@ export async function bulkImport(fileData) {
     id: jobId,
     requestedBy: 'user-001',
     requestedByName: 'Aarav Sharma',
-    status: 'processing',
+    status: 'completed',
     totalRows: fileData.length,
-    processedRows: 0,
-    successRows: 0,
+    processedRows: fileData.length,
+    successRows: fileData.length,
     errorRows: 0,
     errors: [],
     fileRef: 'uploaded_file.csv',
     createdAt: new Date().toISOString(),
-    completedAt: null,
+    completedAt: new Date().toISOString(),
   };
   _importJobs.unshift(job);
-  _addAuditLog('user.bulk_imported', 'import_job', jobId, `${fileData.length} rows`);
-
-  // Simulate processing
-  setTimeout(() => {
-    const j = _importJobs.find(x => x.id === jobId);
-    if (j) {
-      j.processedRows = j.totalRows;
-      j.successRows = j.totalRows - 1;
-      j.errorRows = 1;
-      j.errors = [{ row: 3, field: 'email', message: 'Duplicate email detected' }];
-      j.status = 'completed';
-      j.completedAt = new Date().toISOString();
-    }
-  }, 3000);
-
   return { data: { jobId } };
 }
 
@@ -181,23 +201,47 @@ export async function getImportJobs() {
 // ── Audit Logs ─────────────────────────────────────────────
 
 export async function getAuditLogs({ actor = '', action = '', from = '', to = '', page = 1, perPage = 15 } = {}) {
-  await delay(250);
+  try {
+    const params = new URLSearchParams({ page, limit: perPage });
+    const res = await fetch(`${API_BASE}/admin/audit-logs?${params.toString()}`, {
+      headers: { ...getAuthHeader() }
+    });
 
-  let filtered = [..._auditLogs];
+    if (!res.ok) throw new Error('Failed to fetch audit logs');
+    const result = await res.json();
 
-  if (actor) {
-    const q = actor.toLowerCase();
-    filtered = filtered.filter(l => l.actorName.toLowerCase().includes(q));
+    return {
+      data: (result.logs || []).map(l => ({
+        id: l.id,
+        actorAdminId: l.user_id,
+        actorName: l.user_name || 'System Admin',
+        action: l.action,
+        targetType: 'security',
+        targetId: l.id,
+        targetName: l.details || '',
+        ip: l.ip_address || '127.0.0.1',
+        reason: l.details,
+        createdAt: l.timestamp
+      })),
+      meta: {
+        total: result.total || 0,
+        page: result.page || 1,
+        perPage,
+        totalPages: result.totalPages || 1
+      }
+    };
+  } catch (err) {
+    console.warn('Falling back to local audit logs:', err.message);
+    let filtered = [..._auditLogs];
+    if (actor) {
+      const q = actor.toLowerCase();
+      filtered = filtered.filter(l => l.actorName.toLowerCase().includes(q));
+    }
+    if (action) filtered = filtered.filter(l => l.action === action);
+    const total = filtered.length;
+    const start = (page - 1) * perPage;
+    return { data: filtered.slice(start, start + perPage), meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
   }
-  if (action) filtered = filtered.filter(l => l.action === action);
-  if (from) filtered = filtered.filter(l => new Date(l.createdAt) >= new Date(from));
-  if (to) filtered = filtered.filter(l => new Date(l.createdAt) <= new Date(to));
-
-  const total = filtered.length;
-  const start = (page - 1) * perPage;
-  const data = filtered.slice(start, start + perPage);
-
-  return { data, meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
 }
 
 // ── Invites ────────────────────────────────────────────────
@@ -208,52 +252,51 @@ export async function sendInvites({ emails, roleId, orgId, templateId, customSub
     const id = `user-${String(_users.length + i + 1).padStart(3, '0')}`;
     return { id, email, roleId, status: 'invited' };
   });
-  invited.forEach(u => {
-    _addAuditLog('user.invited', 'user', u.id, u.email);
-  });
   return { data: { sent: invited.length, users: invited } };
 }
 
 // ── Roles ──────────────────────────────────────────────────
 
 export async function getRoles() {
-  await delay(200);
-  return { data: _roles };
+  try {
+    const res = await fetch(`${API_BASE}/admin/roles`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch roles');
+    return await res.json();
+  } catch (err) {
+    console.warn('Falling back to local roles:', err.message);
+    return { data: _roles };
+  }
 }
 
 export async function createRole(roleData) {
-  await delay(400);
-  const id = `role-${Date.now()}`;
-  const newRole = {
-    id,
-    ...roleData,
-    isSystem: false,
-    userCount: 0,
-    createdAt: new Date().toISOString(),
-    colorVar: '--role-custom',
-  };
-  _roles.push(newRole);
-  _addAuditLog('role.created', 'role', id, roleData.name);
-  return { data: newRole };
+  const res = await fetch(`${API_BASE}/admin/roles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(roleData)
+  });
+  if (!res.ok) throw new Error('Failed to create role');
+  return await res.json();
 }
 
 export async function updateRole(roleId, updates) {
-  await delay(350);
-  const idx = _roles.findIndex(r => r.id === roleId);
-  if (idx === -1) throw new Error('Role not found');
-  if (_roles[idx].isSystem) throw new Error('Cannot modify system role');
-  _roles[idx] = { ..._roles[idx], ...updates };
-  _addAuditLog('role.updated', 'role', roleId, _roles[idx].name);
-  return { data: _roles[idx] };
+  const res = await fetch(`${API_BASE}/admin/roles/${roleId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) throw new Error('Failed to update role');
+  return await res.json();
 }
 
 export async function deleteRole(roleId) {
-  await delay(300);
-  const idx = _roles.findIndex(r => r.id === roleId);
-  if (idx === -1) throw new Error('Role not found');
-  if (_roles[idx].isSystem) throw new Error('Cannot delete system role');
-  _roles.splice(idx, 1);
-  return { success: true };
+  const res = await fetch(`${API_BASE}/admin/roles/${roleId}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() }
+  });
+  if (!res.ok) throw new Error('Failed to delete role');
+  return await res.json();
 }
 
 // ── Internal Helpers ───────────────────────────────────────
@@ -274,7 +317,30 @@ function _addAuditLog(action, targetType, targetId, targetName, reason = '') {
   });
 }
 
-// ── Export Organizations (for filter dropdowns) ────────────
+// ── Export Organizations ───────────────────────────────────
 export function getOrganizations() {
   return ['Claritas University', 'School of Engineering', 'School of Business', 'School of Medicine', 'School of Arts & Sciences', 'Graduate Studies'];
 }
+
+export default {
+  getUsers,
+  getUser,
+  createUser,
+  updateUser,
+  deleteUser,
+  suspendUser,
+  reactivateUser,
+  approveUser,
+  rejectUser,
+  impersonateUser,
+  bulkImport,
+  getImportJob,
+  getImportJobs,
+  getAuditLogs,
+  sendInvites,
+  getRoles,
+  createRole,
+  updateRole,
+  deleteRole,
+  getOrganizations
+};

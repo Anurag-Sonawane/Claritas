@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Calendar, CheckCircle2, XCircle, Clock, Save, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { api } from '../../services/api';
 
 export default function FacultyAttendancePage() {
-  const [selectedCourse, setSelectedCourse] = useState('cs301');
-  const [attendanceDate, setAttendanceDate] = useState('2026-07-30');
+  const [courses, setCourses] = useState([
+    { id: 'crs-001', code: 'CS301', title: 'Data Structures & Algorithms' },
+    { id: 'crs-002', code: 'CS402', title: 'Operating Systems Design' }
+  ]);
+  const [selectedCourse, setSelectedCourse] = useState('crs-001');
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSaved, setIsSaved] = useState(false);
 
   const [students, setStudents] = useState([
@@ -14,6 +18,41 @@ export default function FacultyAttendancePage() {
     { id: 'student-004', roll: '2026-CS-031', name: 'Karan Malhotra', status: 'Absent' },
     { id: 'student-005', roll: '2026-CS-045', name: 'Sneha Gupta', status: 'Present' },
   ]);
+
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const data = await api.getCourses();
+        if (Array.isArray(data) && data.length > 0) {
+          setCourses(data);
+          setSelectedCourse(data[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load courses for attendance:', err);
+      }
+    }
+    loadCourses();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCourse) return;
+    async function loadCourseStudents() {
+      try {
+        const roster = await api.getCourseRoster(selectedCourse);
+        if (Array.isArray(roster) && roster.length > 0) {
+          setStudents(roster.map(st => ({
+            id: st.id,
+            roll: '2026-CS-' + (st.id ? String(st.id).slice(-3) : '001'),
+            name: st.name,
+            status: 'Present'
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load roster for attendance:', err);
+      }
+    }
+    loadCourseStudents();
+  }, [selectedCourse]);
 
   const handleStatusChange = (id, newStatus) => {
     setStudents(prev => prev.map(st => st.id === id ? { ...st, status: newStatus } : st));
@@ -77,9 +116,11 @@ export default function FacultyAttendancePage() {
                 border: '1px solid var(--glass-border)', borderRadius: 8, color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none'
               }}
             >
-              <option value="CS301">CS301: Data Structures & Algorithms</option>
-              <option value="CS402">CS402: Operating Systems</option>
-              <option value="AI501">AI501: Applied Machine Learning</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.code}: {c.title}
+                </option>
+              ))}
             </select>
           </div>
 

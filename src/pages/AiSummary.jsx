@@ -1,45 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Sparkles, FileText, CheckCircle, Copy, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
+
+const SAMPLE_LECTURES = {
+  'lecture-dsa': {
+    title: 'CS301: Balanced Trees & Asymptotic Analysis',
+    text: 'In this lecture, we explore self-balancing search trees with emphasis on AVL and Red-Black trees. The critical invariant of an AVL tree is that for every node, the heights of the left and right subtrees differ by at most one. When this invariant is violated during insertion or deletion, we restore balance using single or double rotations. We analyze worst-case time complexity: search, insertion, and deletion all execute strictly in O(log n) time. Red-Black trees trade tighter height balancing for fewer rotations on write operations, making them the standard choice for associative containers in modern language runtimes.'
+  },
+  'lecture-os': {
+    title: 'CS402: Virtual Memory & Page Replacement',
+    text: 'Virtual memory provides an illusion of a large, contiguous address space to every process. The memory management unit (MMU) translates virtual addresses to physical frames using page tables. When a page is accessed that is not resident in physical RAM, the CPU triggers a page fault exception. The operating system handles this by selecting an eviction candidate using algorithms like Clock, Second-Chance, or Least Recently Used (LRU). The translation lookaside buffer (TLB) caches recent translations to prevent double memory dereferences.'
+  },
+  'custom': {
+    title: 'Custom Lecture / Notes',
+    text: ''
+  }
+};
 
 export default function AiSummary() {
   const navigate = useNavigate();
-  const [source, setSource] = useState('lecture-3');
+  const [sourceKey, setSourceKey] = useState('lecture-dsa');
+  const [customText, setCustomText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const generateSummary = () => {
+  const activeText = sourceKey === 'custom' ? customText : SAMPLE_LECTURES[sourceKey]?.text || '';
+  const activeTitle = sourceKey === 'custom' ? 'Custom Study Material' : SAMPLE_LECTURES[sourceKey]?.title || 'Lecture Summary';
+
+  const generateSummary = async () => {
+    if (!activeText.trim()) {
+      setErrorMsg('Please enter or select lecture text to summarize.');
+      return;
+    }
+
     setLoading(true);
-    setProgress(0);
+    setErrorMsg('');
     setResult(null);
 
-    // Simulate AI thinking and "typing" process
-    const duration = 2000;
-    const interval = 50;
-    let current = 0;
-    
-    const timer = setInterval(() => {
-      current += interval;
-      setProgress(Math.min((current / duration) * 100, 100));
-      
-      if (current >= duration) {
-        clearInterval(timer);
-        setTimeout(() => {
-          setLoading(false);
-          setResult({
-            title: 'Week 3: Advanced Matrix Calculus',
-            exec: 'This lecture covered the foundational concepts of Jacobian matrices and their application to backpropagation in deep neural networks. The professor emphasized that understanding the chain rule at a multivariate level is critical for optimization functions.',
-            bullets: [
-              'The Jacobian matrix represents all first-order partial derivatives of a vector-valued function.',
-              'Gradients scale proportionally with the eigenvalues of the transformation matrix.',
-              'Vanishing gradient problems occur when these eigenvalues are repeatedly < 1 across hidden layers.',
-              'ReLU activation functions bypass this mathematical saturation.'
-            ]
-          });
-        }, 300);
-      }
-    }, interval);
+    try {
+      const data = await api.summarizeNotes(activeText, activeTitle);
+      setResult(data);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to generate summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!result) return;
+    const textToCopy = `${result.title}\n\n${result.exec}\n\nKey Takeaways:\n${result.bullets.map(b => `- ${b}`).join('\n')}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -49,11 +65,16 @@ export default function AiSummary() {
       </button>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-        <div style={{ padding: 12, background: 'rgba(244, 63, 94, 0.1)', borderRadius: 12, color: '#f43f5e' }}><FileText size={24} /></div>
-        <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Lecture Summary Generator</h1>
+        <div style={{ padding: 12, background: 'rgba(244, 63, 94, 0.1)', borderRadius: 12, color: '#f43f5e' }}>
+          <FileText size={24} />
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>Lecture Summary Generator</h1>
+          <span className="text-muted">Live extractive NLP & algorithmic study synthesizer.</span>
+        </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: 24, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) 2fr', gap: 24, alignItems: 'start' }}>
         
         {/* Input Panel */}
         <div className="surface" style={{ padding: 24, borderRadius: 16, border: '1px solid var(--border)' }}>
@@ -61,46 +82,53 @@ export default function AiSummary() {
           
           <label style={{ display: 'block', marginBottom: 8, fontSize: '0.85rem', color: 'var(--muted)' }}>Select Source Material</label>
           <select 
-            value={source} 
-            onChange={e => setSource(e.target.value)}
-            style={{ width: '100%', padding: '10px 14px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--foreground)', marginBottom: 24 }}
+            value={sourceKey} 
+            onChange={e => { setSourceKey(e.target.value); setErrorMsg(''); }}
+            style={{ width: '100%', padding: '10px 14px', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--foreground)', marginBottom: 16 }}
           >
-            <option value="lecture-2">Lecture 2: Intro to Linear Algebra .mp4</option>
-            <option value="lecture-3">Lecture 3: Jacobian Matrices .mp4 (Current)</option>
-            <option value="pdf-1">Reading: Chapter 4 Tensor Dynamics .pdf</option>
+            <option value="lecture-dsa">CS301: Balanced Trees & Complexity .txt</option>
+            <option value="lecture-os">CS402: Virtual Memory & Page Faults .txt</option>
+            <option value="custom">Paste Custom Notes / Text...</option>
           </select>
 
-          <label style={{ display: 'block', marginBottom: 8, fontSize: '0.85rem', color: 'var(--muted)' }}>Summary Length</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            {['Short', 'Medium', 'Detailed'].map(len => (
-              <button key={len} style={{ flex: 1, padding: '8px 0', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer' }}>{len}</button>
-            ))}
-          </div>
+          {sourceKey === 'custom' && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontSize: '0.85rem', color: 'var(--muted)' }}>Paste Lecture Transcript or Notes</label>
+              <textarea
+                value={customText}
+                onChange={e => setCustomText(e.target.value)}
+                placeholder="Paste paragraph or notes to summarize..."
+                style={{ width: '100%', height: 120, padding: 10, background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--foreground)', resize: 'vertical' }}
+              />
+            </div>
+          )}
+
+          {errorMsg && (
+            <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 6, color: '#ef4444', fontSize: '0.85rem', marginBottom: 16 }}>
+              {errorMsg}
+            </div>
+          )}
 
           <button 
             onClick={generateSummary} 
             disabled={loading}
             style={{ width: '100%', padding: '12px', background: '#f43f5e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
           >
-            <Sparkles size={18} /> {loading ? 'Extracting Context...' : 'Generate Summary'}
+            <Sparkles size={18} /> {loading ? 'Synthesizing Notes...' : 'Generate Summary'}
           </button>
-
-          {loading && (
-            <div style={{ marginTop: 24 }}>
-              <div style={{ width: '100%', height: 4, background: 'var(--background)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ width: `${progress}%`, height: '100%', background: '#f43f5e', transition: 'width 0.1s' }} />
-              </div>
-              <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--muted)', marginTop: 8 }}>Processing NLP heuristics...</p>
-            </div>
-          )}
         </div>
 
         {/* Output Panel */}
         {result ? (
           <div className="surface" style={{ padding: 32, borderRadius: 16, border: '1px solid var(--border)', animation: 'slideDown 0.3s ease-out' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-               <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{result.title}</h2>
-               <button className="btn-outline btn-sm" onClick={() => alert('Mock: Copied to clipboard')}><Copy size={14}/> Copy Raw</button>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+               <div>
+                 <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{result.title}</h2>
+                 <span className="text-muted" style={{ fontSize: '0.85rem' }}>{result.wordCount} words • {result.readingTime}</span>
+               </div>
+               <button className="btn-outline btn-sm" onClick={handleCopy}>
+                 <Copy size={14}/> {copied ? 'Copied!' : 'Copy Summary'}
+               </button>
              </div>
 
              <div style={{ padding: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 8, borderLeft: '3px solid #f43f5e', marginBottom: 24, fontStyle: 'italic', color: 'var(--muted)', lineHeight: 1.6 }}>
@@ -113,16 +141,12 @@ export default function AiSummary() {
                  <li key={i} style={{ marginBottom: 12 }}>{bullet}</li>
                ))}
              </ul>
-
-             <div style={{ marginTop: 32, display: 'flex', gap: 12 }}>
-                <button className="btn-primary" style={{ background: '#f43f5e' }}><CheckCircle size={16} /> Save to My Notes</button>
-             </div>
           </div>
         ) : (
           !loading && (
-            <div style={{ padding: 40, border: '2px dashed var(--border)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+            <div className="surface" style={{ padding: 40, border: '2px dashed var(--border)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
               <FileText size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-              <p>Configure and generate to view your summary here.</p>
+              <p>Select material or paste notes to generate an analytical study summary.</p>
             </div>
           )
         )}

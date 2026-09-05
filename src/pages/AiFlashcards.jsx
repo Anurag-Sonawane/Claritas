@@ -1,31 +1,37 @@
 import { useState } from 'react';
-import { Sparkles, LayoutDashboard, Shuffle, ArrowLeft, ArrowRight, ArrowLeft as BackIcon } from 'lucide-react';
+import { Sparkles, LayoutDashboard, Shuffle, ArrowLeft, ArrowRight, ArrowLeft as BackIcon, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 
 export default function AiFlashcards() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
   
   // Carousel State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const generateCards = () => {
+  const generateCards = async () => {
     if (!topic.trim()) return;
     setLoading(true);
-    // Mock Gen Delay
-    setTimeout(() => {
-      setCards([
-        { q: 'What is the definition of a Jacobian Matrix?', a: 'A matrix of all first-order partial derivatives of a vector-valued function.' },
-        { q: 'How does a Jacobian relate to neural networks?', a: 'It encapsulates the gradients of an entire layer with respect to its inputs, mathematically structuring backpropagation.' },
-        { q: 'What is the vanishing gradient problem?', a: 'When eigenvalues of weight matrices are consistently less than 1, causing gradients to shrink exponentially as they propagate backward.' },
-      ]);
+    setErrorMsg('');
+    try {
+      const data = await api.generateFlashcards(topic, 5);
+      if (data.cards && data.cards.length > 0) {
+        setCards(data.cards);
+        setCurrentIndex(0);
+        setIsFlipped(false);
+      } else {
+        setErrorMsg('Could not generate cards for this topic. Please provide more detail.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to generate flashcards');
+    } finally {
       setLoading(false);
-      setCurrentIndex(0);
-      setIsFlipped(false);
-    }, 1500);
+    }
   };
 
   const nextCard = () => {
@@ -42,6 +48,14 @@ export default function AiFlashcards() {
     }, 150);
   };
 
+  const shuffleDeck = () => {
+    if (!cards) return;
+    setIsFlipped(false);
+    const shuffled = [...cards].sort(() => Math.random() - 0.5);
+    setCards(shuffled);
+    setCurrentIndex(0);
+  };
+
   return (
     <div>
       <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 24, padding: 0 }}>
@@ -49,17 +63,28 @@ export default function AiFlashcards() {
       </button>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-        <div style={{ padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 12, color: '#3b82f6' }}><LayoutDashboard size={24} /></div>
-        <h1 style={{ margin: 0, fontSize: '1.8rem' }}>AI Flashcard Generator</h1>
+        <div style={{ padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 12, color: '#3b82f6' }}>
+          <LayoutDashboard size={24} />
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>AI Flashcard Generator</h1>
+          <span className="text-muted">Dynamic spaced-repetition deck builder backed by Claritas AI API.</span>
+        </div>
       </div>
+
+      {errorMsg && (
+        <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: 8, color: '#ef4444', maxWidth: 600, margin: '0 auto 24px auto' }}>
+          {errorMsg}
+        </div>
+      )}
 
       {!cards ? (
         <div className="surface" style={{ padding: 40, borderRadius: 16, border: '1px solid var(--border)', maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ margin: '0 0 16px 0' }}>What do you want to study?</h2>
-          <p style={{ color: 'var(--muted)', marginBottom: 32 }}>Input a topic, paste text, or link a note. We'll automatically build a smart spaced-repetition deck.</p>
+          <p style={{ color: 'var(--muted)', marginBottom: 32 }}>Input a topic, exam domain, or question area to generate your smart flashcard deck.</p>
           
           <textarea 
-            placeholder="e.g. Generate 10 cards on Advanced Calculus and Partial Derivatives..."
+            placeholder="e.g. Asymptotic Big-O Analysis, Binary Search Trees, or Virtual Memory Paging..."
             value={topic}
             onChange={e => setTopic(e.target.value)}
             style={{ width: '100%', padding: '16px', background: 'var(--background)', border: '1px solid var(--glass-border)', borderRadius: 12, color: 'var(--foreground)', height: 120, resize: 'none', marginBottom: 24 }}
@@ -75,9 +100,14 @@ export default function AiFlashcards() {
         </div>
       ) : (
         <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 24, fontSize: '0.9rem', color: 'var(--muted)'}}>
-             <span>Deck: Custom Generation</span>
-             <span>Card {currentIndex + 1} of {cards.length}</span>
+           <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 24, fontSize: '0.9rem', color: 'var(--muted)', alignItems: 'center' }}>
+             <span>Deck: {topic}</span>
+             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+               <span>Card {currentIndex + 1} of {cards.length}</span>
+               <button className="btn-outline btn-sm" onClick={() => setCards(null)} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                 <RotateCcw size={12} /> New Topic
+               </button>
+             </div>
            </div>
 
            {/* 3D Flip Container */}
@@ -105,9 +135,11 @@ export default function AiFlashcards() {
                  borderRadius: 16, border: '2px solid rgba(59, 130, 246, 0.3)', display: 'flex', flexDirection: 'column',
                  alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center'
                }}>
-                 <div style={{ fontSize: '0.8rem', color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 24, fontWeight: 'bold' }}>Question</div>
-                 <h2 style={{ fontSize: '1.6rem', margin: 0, lineHeight: 1.4 }}>{cards[currentIndex].q}</h2>
-                 <div style={{ position: 'absolute', bottom: 24, fontSize: '0.8rem', color: 'var(--muted)' }}>Click to reveal answer</div>
+                 <div style={{ fontSize: '0.8rem', color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 24, fontWeight: 'bold' }}>
+                   Question ({cards[currentIndex].difficulty || 'Core'})
+                 </div>
+                 <h2 style={{ fontSize: '1.4rem', margin: 0, lineHeight: 1.4 }}>{cards[currentIndex].q}</h2>
+                 <div style={{ position: 'absolute', bottom: 24, fontSize: '0.8rem', color: 'var(--muted)' }}>Click card to flip</div>
                </div>
 
                {/* Back (Answer) */}
@@ -118,7 +150,8 @@ export default function AiFlashcards() {
                  transform: 'rotateX(180deg)'
                }}>
                  <div style={{ fontSize: '0.8rem', color: '#22c55e', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 24, fontWeight: 'bold' }}>Answer</div>
-                 <h2 style={{ fontSize: '1.3rem', margin: 0, lineHeight: 1.5, color: 'var(--muted)'}}>{cards[currentIndex].a}</h2>
+                 <p style={{ fontSize: '1.2rem', margin: 0, lineHeight: 1.6, color: 'var(--foreground)' }}>{cards[currentIndex].a}</p>
+                 <div style={{ position: 'absolute', bottom: 24, fontSize: '0.8rem', color: 'var(--muted)' }}>Click card to flip back</div>
                </div>
 
              </div>
@@ -129,7 +162,7 @@ export default function AiFlashcards() {
              <button className="btn-outline" onClick={prevCard} disabled={currentIndex === 0} style={{ padding: '12px 24px' }}>
                <ArrowLeft size={20} />
              </button>
-             <button className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px' }}>
+             <button className="btn-outline" onClick={shuffleDeck} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px' }}>
                <Shuffle size={18} /> Shuffle
              </button>
              <button className="btn-outline" onClick={nextCard} disabled={currentIndex === cards.length - 1} style={{ padding: '12px 24px' }}>

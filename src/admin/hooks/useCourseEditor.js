@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as api from '../services/courseApi.js';
 
 export default function useCourseEditor(courseId) {

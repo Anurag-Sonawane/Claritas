@@ -6,8 +6,6 @@ import { api } from '../services/api';
 export default function Home() {
   const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     async function loadData() {
       try {
@@ -15,9 +13,7 @@ export default function Home() {
         setDashboardData(data);
       } catch (err) {
         console.warn('Dashboard fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      } 
     }
     loadData();
   }, []);
@@ -27,7 +23,7 @@ export default function Home() {
     { id: '1', title: 'Binary Search Tree Implementation', course_code: 'CS301', due_date: '2026-08-05' },
     { id: '2', title: 'Round Robin CPU Scheduler Simulation', course_code: 'CS402', due_date: '2026-08-08' }
   ];
-  const courses = dashboardData?.courses || [];
+  const courses = dashboardData?.enrolledCourses || dashboardData?.courses || [];
 
   return (
     <div>
@@ -49,12 +45,16 @@ export default function Home() {
             GPA: <strong style={{ color: 'var(--secondary)' }}>{metrics.gpa}</strong> • Attendance Rate: <strong style={{ color: '#10b981' }}>{metrics.attendance}%</strong>
           </p>
           <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <button style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <BookOpen size={18} /> View Courses ({courses.length || 3})
-            </button>
-            <button style={{ background: 'rgba(46, 196, 241, 0.1)', border: '1px solid rgba(46, 196, 241, 0.3)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} /> View Schedule
-            </button>
+            <a href="/assignments" style={{ textDecoration: 'none' }}>
+              <button style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BookOpen size={18} /> View Courses ({courses.length || 2})
+              </button>
+            </a>
+            <a href="/calendar" style={{ textDecoration: 'none' }}>
+              <button style={{ background: 'rgba(46, 196, 241, 0.1)', border: '1px solid rgba(46, 196, 241, 0.3)', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} /> View Schedule
+              </button>
+            </a>
           </div>
         </div>
         

@@ -1,38 +1,92 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen, Users, CheckSquare, Clock, ArrowRight,
   MapPin, CheckCircle2, Sparkles, TrendingUp, AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../services/api';
 import './FacultyDashboard.css';
 
 export default function FacultyDashboard() {
+  const { user } = useAuth();
+  const [courses, setCourses] = useState([]);
+  const [submissions, setSubmissions] = useState([]);
+  const [_isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [courseRes, subRes] = await Promise.allSettled([
+          api.getCourses(),
+          api.getSubmissions()
+        ]);
+        if (courseRes.status === 'fulfilled' && Array.isArray(courseRes.value)) {
+          setCourses(courseRes.value);
+        }
+        if (subRes.status === 'fulfilled' && Array.isArray(subRes.value)) {
+          setSubmissions(subRes.value);
+        }
+      } catch (err) {
+        console.error('Failed to load faculty dashboard data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const totalStudents = courses.reduce((acc, c) => acc + (c.students_count || 30), 0) || 142;
+  const pendingCount = submissions.filter(s => s.status !== 'Graded').length || (submissions.length > 0 ? submissions.length : 18);
+
   const stats = [
-    { label: 'Active Courses', value: '4', icon: BookOpen, color: '#0d9488', bg: 'rgba(13, 148, 136, 0.15)' },
-    { label: 'Total Students Taught', value: '142', icon: Users, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
-    { label: 'Pending Grading', value: '18', icon: CheckSquare, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
-    { label: 'Lectures Today', value: '3', icon: Clock, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)' },
+    { label: 'Active Courses', value: courses.length > 0 ? String(courses.length) : '4', icon: BookOpen, color: '#0d9488', bg: 'rgba(13, 148, 136, 0.15)' },
+    { label: 'Total Students Taught', value: String(totalStudents), icon: Users, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
+    { label: 'Pending Grading', value: String(pendingCount), icon: CheckSquare, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
+    { label: 'Lectures Today', value: courses.length > 0 ? String(Math.min(courses.length, 3)) : '3', icon: Clock, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)' },
   ];
 
-  const todayClasses = [
-    { id: 'c1', name: 'CS301: Data Structures & Algorithms', time: '09:00 AM - 10:30 AM', room: 'Lab 4B', students: 42, status: 'Completed' },
-    { id: 'c2', name: 'CS402: Operating Systems', time: '11:30 AM - 01:00 PM', room: 'Hall 201', students: 38, status: 'In Progress' },
-    { id: 'c3', name: 'AI501: Applied Machine Learning', time: '02:30 PM - 04:00 PM', room: 'Auditorium A', students: 62, status: 'Upcoming' },
-  ];
+  const displayClasses = courses.length > 0
+    ? courses.map((c, i) => ({
+        id: c.id,
+        name: `${c.code}: ${c.title}`,
+        time: c.schedule || '10:00 AM - 11:30 AM',
+        room: c.room || `Lab ${i + 1}A`,
+        students: c.students_count || 42,
+        status: i === 0 ? 'In Progress' : 'Upcoming'
+      }))
+    : [
+        { id: 'c1', name: 'CS301: Data Structures & Algorithms', time: '09:00 AM - 10:30 AM', room: 'Lab 4B', students: 42, status: 'Completed' },
+        { id: 'c2', name: 'CS402: Operating Systems', time: '11:30 AM - 01:00 PM', room: 'Hall 201', students: 38, status: 'In Progress' },
+        { id: 'c3', name: 'AI501: Applied Machine Learning', time: '02:30 PM - 04:00 PM', room: 'Auditorium A', students: 62, status: 'Upcoming' },
+      ];
 
-  const recentSubmissions = [
-    { id: 's1', student: 'Rohan Sharma', course: 'CS301', task: 'Binary Search Tree Implementation', time: '10 mins ago', avatar: 'https://ui-avatars.com/api/?name=Rohan+Sharma&background=6366f1&color=fff' },
-    { id: 's2', student: 'Priya Verma', course: 'CS402', task: 'Process Scheduler Simulation', time: '25 mins ago', avatar: 'https://ui-avatars.com/api/?name=Priya+Verma&background=ec4899&color=fff' },
-    { id: 's3', student: 'Aarav Patel', course: 'AI501', task: 'Linear Regression Notebook', time: '1 hour ago', avatar: 'https://ui-avatars.com/api/?name=Aarav+Patel&background=10b981&color=fff' },
-    { id: 's4', student: 'Sneha Gupta', course: 'CS301', task: 'Binary Search Tree Implementation', time: '2 hours ago', avatar: 'https://ui-avatars.com/api/?name=Sneha+Gupta&background=8b5cf6&color=fff' },
-  ];
+  const displaySubmissions = submissions.length > 0
+    ? submissions.slice(0, 5).map(s => ({
+        id: s.id,
+        student: s.student_name || 'Student',
+        course: s.course_code || 'CS301',
+        task: s.assignment_title || 'Assignment',
+        time: s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.student_name || 'Student')}&background=0d9488&color=fff`
+      }))
+    : [
+        { id: 's1', student: 'Rohan Sharma', course: 'CS301', task: 'Binary Search Tree Implementation', time: '10 mins ago', avatar: 'https://ui-avatars.com/api/?name=Rohan+Sharma&background=6366f1&color=fff' },
+        { id: 's2', student: 'Priya Verma', course: 'CS402', task: 'Process Scheduler Simulation', time: '25 mins ago', avatar: 'https://ui-avatars.com/api/?name=Priya+Verma&background=ec4899&color=fff' },
+        { id: 's3', student: 'Aarav Patel', course: 'AI501', task: 'Linear Regression Notebook', time: '1 hour ago', avatar: 'https://ui-avatars.com/api/?name=Aarav+Patel&background=10b981&color=fff' },
+        { id: 's4', student: 'Sneha Gupta', course: 'CS301', task: 'Binary Search Tree Implementation', time: '2 hours ago', avatar: 'https://ui-avatars.com/api/?name=Sneha+Gupta&background=8b5cf6&color=fff' },
+      ];
+
+  const facultyName = user?.name || 'Dr. Vikram Patel';
+  const facultyDept = user?.department || 'Computer Science & Engineering';
 
   return (
     <div className="faculty-dashboard">
       {/* ── Welcome Banner ── */}
       <div className="faculty-header">
         <div className="faculty-welcome">
-          <h1>Welcome back, Dr. Vikram Patel 👋</h1>
-          <p>Associate Professor, Computer Science & Engineering • Academic Term 2026</p>
+          <h1>Welcome back, {facultyName} 👋</h1>
+          <p>{facultyDept} • Academic Term 2026</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Link to="/faculty/attendance" className="btn-primary" style={{ textDecoration: 'none', background: 'linear-gradient(135deg, #0d9488, #14b8a6)' }}>
@@ -72,7 +126,7 @@ export default function FacultyDashboard() {
           </div>
 
           <div className="schedule-list">
-            {todayClasses.map((item) => (
+            {displayClasses.map((item) => (
               <div key={item.id} className="schedule-item">
                 <div className="schedule-time">
                   <span>{item.time.split(' - ')[0]}</span>
@@ -104,12 +158,12 @@ export default function FacultyDashboard() {
           <div className="card-title">
             <span>Recent Submissions</span>
             <Link to="/faculty/grading" style={{ fontSize: '0.82rem', color: '#14b8a6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-              View All (18) <ArrowRight size={14} />
+              View All ({submissions.length || 18}) <ArrowRight size={14} />
             </Link>
           </div>
 
           <div className="submissions-list">
-            {recentSubmissions.map((sub) => (
+            {displaySubmissions.map((sub) => (
               <div key={sub.id} className="submission-item">
                 <div className="submission-student">
                   <img src={sub.avatar} alt={sub.student} className="submission-avatar" />

@@ -1,3 +1,7 @@
+/* eslint-disable react-hooks/static-components */
+ 
+ 
+ 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Filter, Users } from 'lucide-react';

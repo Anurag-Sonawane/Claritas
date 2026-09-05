@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Webhook, Plus, CheckCircle, XCircle } from 'lucide-react';
-import { MOCK_WEBHOOK_LOGS } from '../services/operationsMockService.js';
+import { MOCK_WEBHOOK_LOGS, getWebhookLogs } from '../services/operationsMockService.js';
 
 export default function WebhooksPage() {
-  const [logs] = useState(MOCK_WEBHOOK_LOGS);
+  const [logs, setLogs] = useState(MOCK_WEBHOOK_LOGS);
+
+  useEffect(() => {
+    async function loadLogs() {
+      try {
+        const data = await getWebhookLogs();
+        if (Array.isArray(data) && data.length > 0) {
+          setLogs(data.map(l => ({
+            id: l.id || `wh_${l.created_at || Date.now()}`,
+            event: l.event,
+            time: l.created_at ? new Date(l.created_at).toLocaleTimeString() : 'Recently',
+            url: l.url,
+            status: l.status_code || 200
+          })));
+        }
+      } catch (err) {
+        console.warn('Webhook logs notice:', err.message);
+      }
+    }
+    loadLogs();
+  }, []);
 
   return (
     <div>

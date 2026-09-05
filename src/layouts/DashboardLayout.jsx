@@ -22,6 +22,15 @@ const NavigationLinks = [
 export default function DashboardLayout() {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const isLockdown = location.pathname === '/proctored-test';
+
+  if (isLockdown) {
+    return (
+      <div className="lockdown-viewport" style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--background)' }}>
+        <Outlet />
+      </div>
+    );
+  }
 
   return (
     <div className="layout-container">

@@ -1,7 +1,7 @@
 import { History, RotateCcw, Tag, User, Clock, ChevronRight, Check } from 'lucide-react';
 import Modal from './Modal.jsx';
 
-export default function VersionHistoryModal({ courseId, versions, onRollback, onClose }) {
+export default function VersionHistoryModal({  versions, onRollback, onClose }) {
   return (
     <Modal onClose={onClose} title="Version History" size="md">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 500, overflowY: 'auto' }}>

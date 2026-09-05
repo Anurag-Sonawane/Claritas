@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PlusCircle, Calendar, BookOpen, Clock, Award, FileText, CheckCircle2, Plus, X } from 'lucide-react';
 import { api } from '../../services/api';
 
 export default function FacultyAssignmentsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [title, setTitle] = useState('');
-  const [course, setCourse] = useState('cs301');
+  const [course, setCourse] = useState('crs-001');
   const [dueDate, setDueDate] = useState('');
   const [maxScore, setMaxScore] = useState('50');
   const [instructions, setInstructions] = useState('');
+  const [courses, setCourses] = useState([
+    { id: 'crs-001', code: 'CS301', title: 'Data Structures' },
+    { id: 'crs-002', code: 'CS402', title: 'Operating Systems' }
+  ]);
 
   const [assignments, setAssignments] = useState([
     {
@@ -33,27 +37,58 @@ export default function FacultyAssignmentsPage() {
     }
   ]);
 
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [courseList, asgList] = await Promise.allSettled([
+          api.getCourses(),
+          api.getAssignments()
+        ]);
+        if (courseList.status === 'fulfilled' && Array.isArray(courseList.value) && courseList.value.length > 0) {
+          setCourses(courseList.value);
+          setCourse(courseList.value[0].id);
+        }
+        if (asgList.status === 'fulfilled' && Array.isArray(asgList.value) && asgList.value.length > 0) {
+          setAssignments(asgList.value.map(a => ({
+            id: a.id,
+            title: a.title,
+            course: `${a.course_code || 'CS301'}: ${a.course_title || 'Course'}`,
+            dueDate: a.due_date,
+            maxScore: a.max_score || 100,
+            submittedCount: a.submitted_count || 0,
+            totalStudents: 42,
+            status: 'Active'
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load assignments/courses:', err);
+      }
+    }
+    loadData();
+  }, []);
+
   const handleCreateAssignment = async (e) => {
     e.preventDefault();
     if (!title || !dueDate) return;
 
     try {
       const created = await api.createAssignment({
-        course_id: course.toLowerCase(),
+        course_id: course,
         title,
         due_date: dueDate,
         max_score: parseInt(maxScore) || 50,
         instructions
       });
 
+      const selectedC = courses.find(c => c.id === course);
       const newAsg = {
         id: created.id,
         title: created.title,
-        course: course.toUpperCase() + ': Course Assignment',
+        course: selectedC ? `${selectedC.code}: ${selectedC.title}` : 'Course Assignment',
         dueDate: created.due_date,
         maxScore: created.max_score,
         submittedCount: 0,
-        totalStudents: 40,
+        totalStudents: 42,
         status: 'Active'
       };
 
@@ -164,9 +199,11 @@ export default function FacultyAssignmentsPage() {
                       border: '1px solid var(--glass-border)', borderRadius: 8, color: 'var(--foreground)', fontSize: '0.9rem', outline: 'none'
                     }}
                   >
-                    <option value="CS301">CS301: Data Structures</option>
-                    <option value="CS402">CS402: Operating Systems</option>
-                    <option value="AI501">AI501: Machine Learning</option>
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.code}: {c.title}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

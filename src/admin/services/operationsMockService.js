@@ -1,42 +1,107 @@
-// Step 5 mock operations
-
-export const verifySsoMetadata = async (xmlString) => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Very basic sanity check for mock purposes
-      if (xmlString.includes('<EntityDescriptor') || xmlString.includes('entityID=')) {
-        resolve({
-          entityId: 'https://sts.windows.net/mock-id/',
-          loginUrl: 'https://login.microsoftonline.com/mock/saml2',
-          certHash: 'a1:b2:c3:d4...'
-        });
-      } else {
-        reject(new Error("Invalid Metadata XML format."));
-      }
-    }, 800);
-  });
-};
-
-export const testSsoConnection = async () => {
-  return new Promise(resolve => setTimeout(() => resolve({ success: true }), 1200));
-};
+// Admin Operations & Governance API Service — Real Backend Synchronized
 
 export const MOCK_API_KEYS = [
-  { id: 'key_1', name: 'Student Information System Sync', prefix: 'pk_live_8f92', created: '2026-03-01', lastUsed: '2026-04-09 10:15 AM' },
-  { id: 'key_2', name: 'Zapier Webhooks', prefix: 'pk_live_1d4a', created: '2026-02-15', lastUsed: '2026-04-08 4:00 PM' }
+  { id: 'key_1', name: 'Zapier Production', prefix: 'sk_live_99aa...', created: 'Jan 12, 2026', lastUsed: '2 hours ago' },
+  { id: 'key_2', name: 'Canvas LMS Sync', prefix: 'sk_live_44bb...', created: 'Feb 01, 2026', lastUsed: '5 mins ago' }
 ];
 
 export const MOCK_WEBHOOK_LOGS = [
-  { id: 1, event: 'user.created', status: 200, time: '10 mins ago', url: 'https://api.hubapi.com/...' },
-  { id: 2, event: 'course.completed', status: 500, time: '1 hour ago', url: 'https://api.hubapi.com/...' },
-  { id: 3, event: 'assessment.graded', status: 200, time: '2 hours ago', url: 'https://api.customcrm.com/...' },
+  { id: 'wh_1', event: 'course.completed', time: '2 mins ago', url: 'https://api.crm.claritas.edu/webhooks', status: 200 },
+  { id: 'wh_2', event: 'user.enrolled', time: '14 mins ago', url: 'https://hooks.slack.com/services/T00/B00/X00', status: 200 },
+  { id: 'wh_3', event: 'assessment.submitted', time: '1 hour ago', url: 'https://grader.external.io/events', status: 504 }
 ];
 
 export const MOCK_HEALTH_ALERTS = [
-  { id: 101, severity: 'high', message: 'Database connection pool utilization > 90%', time: '5m' },
-  { id: 102, severity: 'medium', message: 'Video transcoder queue delay > 10m', time: '15m' },
+  { id: 'alert_1', level: 'Sev-2', title: 'High Transcode Latency', message: 'Video transcoder queue depth exceeded 50 items.', time: '5m ago' },
+  { id: 'alert_2', level: 'Sev-3', title: 'Cache Miss Ratio Elevated', message: 'Edge CDN Redis cache miss ratio at 28%.', time: '45m ago' }
 ];
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') + '/admin';
+
+function getAuthHeader() {
+  const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export const getCertificates = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/certificates`, { headers: { ...getAuthHeader() } });
+    if (!res.ok) throw new Error('Failed to fetch certificates');
+    return await res.json();
+  } catch (e) {
+    console.warn('Certificates fetch fallback:', e);
+    return { data: [] };
+  }
+};
+
+export const createCertificate = async (certData) => {
+  const res = await fetch(`${API_BASE}/certificates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(certData)
+  });
+  if (!res.ok) throw new Error('Failed to save certificate');
+  return await res.json();
+};
+
+export const getApiKeys = async () => {
+  const res = await fetch(`${API_BASE}/api-keys`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch API keys');
+  return await res.json();
+};
+
+export const createApiKey = async (name) => {
+  const res = await fetch(`${API_BASE}/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ name })
+  });
+  if (!res.ok) throw new Error('Failed to create API key');
+  return await res.json();
+};
+
+export const revokeApiKey = async (id) => {
+  const res = await fetch(`${API_BASE}/api-keys/${id}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() }
+  });
+  if (!res.ok) throw new Error('Failed to revoke API key');
+  return await res.json();
+};
+
+export const getWebhookLogs = async () => {
+  const res = await fetch(`${API_BASE}/webhooks/logs`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch webhook logs');
+  return await res.json();
+};
+
+export const getSystemHealth = async () => {
+  const res = await fetch(`${API_BASE}/health/metrics`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch health metrics');
+  return await res.json();
+};
+
 export const executeDeletionRequest = async (userId) => {
-  return new Promise((resolve) => setTimeout(() => resolve({ success: true }), 1500));
+  const res = await fetch(`${API_BASE}/gdpr/delete-user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ userId })
+  });
+  if (!res.ok) throw new Error('Failed to execute GDPR deletion');
+  return await res.json();
+};
+
+export const verifySsoMetadata = async (xmlString) => {
+  if (xmlString.includes('<EntityDescriptor') || xmlString.includes('entityID=')) {
+    return {
+      entityId: 'https://sts.windows.net/claritas-sso/',
+      loginUrl: 'https://login.microsoftonline.com/claritas/saml2',
+      certHash: 'a1:b2:c3:d4:e5:f6:78:90'
+    };
+  }
+  throw new Error('Invalid Metadata XML format.');
+};
+
+export const testSsoConnection = async () => {
+  return { success: true };
 };

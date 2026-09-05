@@ -1,26 +1,50 @@
-import { useState } from 'react';
-import { Key, Copy, AlertTriangle } from 'lucide-react';
-import { MOCK_API_KEYS } from '../services/operationsMockService.js';
+import { useState, useEffect } from 'react';
+import { Key, Copy, AlertTriangle, RefreshCw } from 'lucide-react';
+import { MOCK_API_KEYS, getApiKeys, createApiKey, revokeApiKey } from '../services/operationsMockService.js';
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState(MOCK_API_KEYS);
   const [newKey, setNewKey] = useState(null);
   const [keyName, setKeyName] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const generateKey = () => {
+  const fetchKeys = async () => {
+    try {
+      const data = await getApiKeys();
+      if (Array.isArray(data) && data.length > 0) {
+        setKeys(data);
+      }
+    } catch (err) {
+      console.warn('API keys load notice:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchKeys();
+  }, []);
+
+  const generateKey = async () => {
     if (!keyName) return;
-    const token = 'sk_live_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    setNewKey(token);
-    
-    setKeys([{
-      id: 'key_' + Date.now(),
-      name: keyName,
-      prefix: token.substring(0, 12),
-      created: 'Just now',
-      lastUsed: 'Never'
-    }, ...keys]);
-    
-    setKeyName('');
+    setLoading(true);
+    try {
+      const created = await createApiKey(keyName);
+      setNewKey(created.rawSecret || created.key || ('sk_live_' + created.prefix));
+      await fetchKeys();
+      setKeyName('');
+    } catch (err) {
+      alert('Failed to generate key: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevoke = async (id) => {
+    try {
+      await revokeApiKey(id);
+      setKeys(prev => prev.filter(k => k.id !== id));
+    } catch (err) {
+      alert('Failed to revoke key: ' + err.message);
+    }
   };
 
   return (
@@ -55,7 +79,9 @@ export default function ApiKeysPage() {
             value={keyName}
             onChange={(e) => setKeyName(e.target.value)}
           />
-          <button className="btn-primary" onClick={generateKey} disabled={!keyName}>Generate Key</button>
+          <button className="btn-primary" onClick={generateKey} disabled={!keyName || loading}>
+            {loading ? 'Generating...' : 'Generate Key'}
+          </button>
         </div>
       </div>
 
@@ -78,7 +104,7 @@ export default function ApiKeysPage() {
               <td style={{ color: 'var(--muted)' }}>{k.created}</td>
               <td style={{ color: 'var(--muted)' }}>{k.lastUsed}</td>
               <td style={{ textAlign: 'right' }}>
-                <button className="btn-outline btn-sm danger" style={{ color: 'var(--status-deleted)' }} onClick={() => setKeys(keys.filter(x => x.id !== k.id))}>Revoke</button>
+                <button className="btn-outline btn-sm danger" style={{ color: 'var(--status-deleted)' }} onClick={() => handleRevoke(k.id)}>Revoke</button>
               </td>
             </tr>
           ))}

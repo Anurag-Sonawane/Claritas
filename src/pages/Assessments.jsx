@@ -5,8 +5,6 @@ import { api } from '../services/api';
 
 export default function Assessments() {
   const [tests, setTests] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     async function loadTests() {
       try {
@@ -14,9 +12,7 @@ export default function Assessments() {
         setTests(data);
       } catch (err) {
         console.warn('Assessments fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      } 
     }
     loadTests();
   }, []);

@@ -94,8 +94,11 @@ export default function CourseCard({ course, isSelected, onSelect, onDelete }) {
 }
 
 function formatRelative(dateStr) {
-  if (!dateStr) return '—';
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr || dateStr === 'Never' || dateStr === '—') return '—';
+  const timestamp = new Date(dateStr).getTime();
+  if (isNaN(timestamp)) return '—';
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return 'Just now';
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);

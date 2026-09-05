@@ -1,5 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { clearAuthStorage } from '../services/apiClient';
 
 const AuthContext = createContext(null);
 
@@ -7,25 +9,38 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check sessionStorage and localStorage on mount
+  // Validate session against the backend on mount
   useEffect(() => {
     async function initAuth() {
       const sessionUser = sessionStorage.getItem('claritas_user');
       const localUser = localStorage.getItem('claritas_user');
+      const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
 
       let parsedUser = null;
       if (sessionUser) {
-        try { parsedUser = JSON.parse(sessionUser); } catch (e) { sessionStorage.removeItem('claritas_user'); }
+        try { parsedUser = JSON.parse(sessionUser); } catch { sessionStorage.removeItem('claritas_user'); }
       } else if (localUser) {
         try {
           const parsed = JSON.parse(localUser);
           if (parsed && parsed.rememberMe) parsedUser = parsed;
           else localStorage.removeItem('claritas_user');
-        } catch (e) { localStorage.removeItem('claritas_user'); }
+        } catch { localStorage.removeItem('claritas_user'); }
       }
 
-      if (parsedUser) {
-        setUser(parsedUser);
+      if (parsedUser && token) {
+        try {
+          // Verify with live backend
+          const verifiedUser = await api.getCurrentUser();
+          setUser({ ...parsedUser, ...verifiedUser });
+        } catch (err) {
+          console.warn('Session verification notice:', err.message);
+          // If token expired or invalid and couldn't be refreshed
+          clearAuthStorage();
+          setUser(null);
+        }
+      } else {
+        clearAuthStorage();
+        setUser(null);
       }
       setIsLoading(false);
     }
@@ -34,22 +49,15 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password, rememberMe = false) => {
     try {
-      const { user: authenticatedUser, token } = await api.login(email, password);
-      const userWithPersistence = { ...authenticatedUser, rememberMe };
+      const data = await api.login(email, password, rememberMe);
+      const userWithPersistence = { ...data.user, rememberMe };
 
       setUser(userWithPersistence);
 
-      localStorage.removeItem('claritas_user');
-      sessionStorage.removeItem('claritas_user');
-      localStorage.removeItem('claritas_token');
-      sessionStorage.removeItem('claritas_token');
-
       if (rememberMe) {
         localStorage.setItem('claritas_user', JSON.stringify(userWithPersistence));
-        localStorage.setItem('claritas_token', token);
       } else {
         sessionStorage.setItem('claritas_user', JSON.stringify(userWithPersistence));
-        sessionStorage.setItem('claritas_token', token);
       }
 
       return userWithPersistence;
@@ -59,11 +67,14 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    setUser(null);
-    localStorage.removeItem('claritas_user');
-    sessionStorage.removeItem('claritas_user');
-    localStorage.removeItem('claritas_token');
-    sessionStorage.removeItem('claritas_token');
+    try {
+      await api.logout();
+    } catch (err) {
+      console.warn('Logout error:', err.message);
+    } finally {
+      setUser(null);
+      clearAuthStorage();
+    }
   };
 
   return (
@@ -80,3 +91,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export default AuthContext;

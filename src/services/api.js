@@ -1,201 +1,135 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+import { apiClient, API_BASE_URL, clearAuthStorage, setTokens, getRefreshToken } from './apiClient';
 
-function getAuthHeader() {
-  const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+export { API_BASE_URL };
 
 export const api = {
-  // Auth
+  // ── Auth ──
   async register(registrationData) {
-    const res = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(registrationData),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Registration failed');
+    return await apiClient.post('/auth/register', registrationData);
+  },
+
+  async login(email, password, rememberMe = false) {
+    const data = await apiClient.post('/auth/login', { email, password, rememberMe });
+    setTokens({ token: data.token, refreshToken: data.refreshToken, rememberMe });
     return data;
   },
 
-  async login(email, password) {
-    const res = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed');
-    return data;
+  async logout() {
+    try {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        await apiClient.post('/auth/logout', { refreshToken });
+      }
+    } catch (e) {
+      console.warn('Backend logout notification skipped:', e.message);
+    } finally {
+      clearAuthStorage();
+    }
   },
 
   async getCurrentUser() {
-    const res = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: { ...getAuthHeader() },
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to fetch user');
+    const data = await apiClient.get('/auth/me');
     return data.user;
   },
 
-  // Courses & Rosters
+  // ── Courses & Rosters ──
   async getCourses() {
-    const res = await fetch(`${API_BASE_URL}/courses`);
-    return await res.json();
+    return await apiClient.get('/courses');
   },
 
   async getCourseRoster(courseId) {
-    const res = await fetch(`${API_BASE_URL}/courses/${courseId}/roster`);
-    return await res.json();
+    return await apiClient.get(`/courses/${courseId}/roster`);
   },
 
-  // Assignments
+  // ── Assignments ──
   async getAssignments() {
-    const res = await fetch(`${API_BASE_URL}/assignments`);
-    return await res.json();
+    return await apiClient.get('/assignments');
   },
 
   async createAssignment(assignmentData) {
-    const res = await fetch(`${API_BASE_URL}/assignments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify(assignmentData),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to create assignment');
-    return data;
+    return await apiClient.post('/assignments', assignmentData);
   },
 
-  // Submissions & Grading
+  // ── Submissions & Grading ──
   async getSubmissions() {
-    const res = await fetch(`${API_BASE_URL}/submissions`);
-    return await res.json();
+    return await apiClient.get('/submissions');
   },
 
   async gradeSubmission(submissionId, score, feedback) {
-    const res = await fetch(`${API_BASE_URL}/submissions/${submissionId}/grade`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify({ score, feedback }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to update grade');
-    return data;
+    return await apiClient.patch(`/submissions/${submissionId}/grade`, { score, feedback });
   },
 
   async submitAssignment(assignmentId, content) {
-    const res = await fetch(`${API_BASE_URL}/submissions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify({ assignment_id: assignmentId, content }),
-    });
-    return await res.json();
+    return await apiClient.post('/submissions', { assignment_id: assignmentId, content });
   },
 
-  // Attendance
+  // ── Attendance ──
   async getAttendance(courseId, date) {
-    const res = await fetch(`${API_BASE_URL}/attendance?course_id=${courseId}&date=${date}`);
-    return await res.json();
+    return await apiClient.get(`/attendance?course_id=${courseId}&date=${date}`);
   },
 
   async saveAttendanceSession(courseId, date, records) {
-    const res = await fetch(`${API_BASE_URL}/attendance/session`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify({ course_id: courseId, date, records }),
-    });
-    return await res.json();
+    return await apiClient.post('/attendance/session', { course_id: courseId, lecture_date: date, records });
   },
 
-  // Student Panel Specific APIs
+  // ── Student Panel Specific APIs ──
   async getStudentDashboard() {
-    const res = await fetch(`${API_BASE_URL}/student/dashboard`, {
-      headers: { ...getAuthHeader() },
-    });
-    return await res.json();
+    return await apiClient.get('/student/dashboard');
   },
 
   async getStudentAttendance() {
-    const res = await fetch(`${API_BASE_URL}/student/attendance`, {
-      headers: { ...getAuthHeader() },
-    });
-    return await res.json();
+    return await apiClient.get('/student/attendance');
   },
 
   async getStudentCalendar() {
-    const res = await fetch(`${API_BASE_URL}/student/calendar`, {
-      headers: { ...getAuthHeader() },
-    });
-    return await res.json();
+    return await apiClient.get('/student/calendar');
   },
 
   async getAnnouncements() {
-    const res = await fetch(`${API_BASE_URL}/announcements`);
-    return await res.json();
+    return await apiClient.get('/announcements');
   },
 
   async createAnnouncement(data) {
-    const res = await fetch(`${API_BASE_URL}/announcements`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify(data),
-    });
-    return await res.json();
+    return await apiClient.post('/announcements', data);
   },
 
   async getTickets() {
-    const res = await fetch(`${API_BASE_URL}/tickets`, {
-      headers: { ...getAuthHeader() },
-    });
-    return await res.json();
+    return await apiClient.get('/student/tickets');
   },
 
   async createTicket(data) {
-    const res = await fetch(`${API_BASE_URL}/tickets`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      body: JSON.stringify(data),
-    });
-    return await res.json();
+    return await apiClient.post('/student/tickets', data);
   },
 
   async getStudentFees() {
-    const res = await fetch(`${API_BASE_URL}/student/fees`, {
-      headers: { ...getAuthHeader() },
-    });
-    return await res.json();
+    return await apiClient.get('/student/fees');
   },
 
-  async payStudentFees() {
-    const res = await fetch(`${API_BASE_URL}/student/fees/pay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    });
-    return await res.json();
+  async payStudentFees(feeId) {
+    return await apiClient.post('/student/fees/pay', { feeId });
   },
 
   async getAssessments() {
-    const res = await fetch(`${API_BASE_URL}/assessments`);
-    return await res.json();
+    return await apiClient.get('/assessments');
   },
 
-  // Sandbox Compiler
+  // ── Sandbox Compiler ──
   async runCompiler(code, language = 'javascript') {
-    const res = await fetch(`${API_BASE_URL}/compiler/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, language }),
-    });
-    return await res.json();
+    return await apiClient.post('/compiler/run', { code, language });
   },
 
-  // AI Endpoints
-  async summarizeNotes(text) {
-    const res = await fetch(`${API_BASE_URL}/ai/summarize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    return await res.json();
+  // ── Real AI Endpoints ──
+  async summarizeNotes(text, title = '') {
+    return await apiClient.post('/ai/summarize', { text, title });
+  },
+
+  async generateFlashcards(topic, count = 5, notes = '') {
+    return await apiClient.post('/ai/flashcards', { topic, count, notes });
+  },
+
+  async generatePpt(topic, audience = 'Undergraduate Students', slidesCount = 5) {
+    return await apiClient.post('/ai/ppt', { topic, audience, slidesCount });
   }
 };
+
+export default api;

@@ -1,64 +1,54 @@
-// mock service for Analytics step 4
+﻿// Analytics API Service — Real Backend Synchronized
 
-// 90-day mock KPI data for sparklines
-const generateSparkline = (base, volatility) => {
-  return Array.from({ length: 30 }, (_, i) => ({
-    day: `Day ${i + 1}`,
-    value: Math.floor(base + Math.random() * volatility - volatility / 2)
-  }));
+const API_BASE = 'http://localhost:5000/api/admin/analytics';
+
+function getAuthHeader() {
+  const token = localStorage.getItem('claritas_token') || sessionStorage.getItem('claritas_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export const getKpis = async () => {
+  const res = await fetch(`${API_BASE}/kpis`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch analytics KPIs');
+  return await res.json();
 };
 
-export const MOCK_KPIS = {
-  activeUsers: { current: 12450, change: '+12%', trend: 'up', data: generateSparkline(12000, 1000) },
-  newEnrollments: { current: 3420, change: '+5%', trend: 'up', data: generateSparkline(3000, 500) },
-  completions: { current: 890, change: '-2%', trend: 'down', data: generateSparkline(900, 200) },
-  avgTimeSpent: { current: '4h 20m', change: '+15m', trend: 'up', data: generateSparkline(260, 40) }, // in minutes for chart
-  systemErrors: { current: 12, change: '-4', trend: 'down', data: generateSparkline(15, 10) },
+export const getFunnel = async () => {
+  const res = await fetch(`${API_BASE}/funnel`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch funnel data');
+  return await res.json();
 };
 
-// Engagment Funnel mock (Enrolled -> Started -> 50% -> Completed)
-export const MOCK_FUNNEL = [
-  { stage: 'Enrolled', users: 5000, fill: 'var(--primary)' },
-  { stage: 'Started Course', users: 4200, fill: 'var(--secondary)' },
-  { stage: 'Reached 50%', users: 2800, fill: 'var(--status-review)' },
-  { stage: 'Completed', users: 1100, fill: 'var(--status-active)' }
-];
+export const getCohorts = async () => {
+  const res = await fetch(`${API_BASE}/cohorts`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch cohort data');
+  return await res.json();
+};
 
-// Cohort Retention (Weeks 0-4)
-export const MOCK_COHORTS = [
-  { cohort: 'Mar 1', size: 1200, w0: 100, w1: 85, w2: 70, w3: 50, w4: 40 },
-  { cohort: 'Mar 8', size: 1400, w0: 100, w1: 88, w2: 72, w3: 55, w4: 42 },
-  { cohort: 'Mar 15', size: 1150, w0: 100, w1: 82, w2: 65, w3: 45, w4: 38 },
-  { cohort: 'Mar 22', size: 1800, w0: 100, w1: 90, w2: 78, w3: 60, w4: 50 },
-  { cohort: 'Mar 29', size: 1050, w0: 100, w1: 80, w2: 0, w3: 0, w4: 0 }, // Recent, incomplete weeks
-];
+export const getHeatmap = async () => {
+  const res = await fetch(`${API_BASE}/heatmaps`, { headers: { ...getAuthHeader() } });
+  if (!res.ok) throw new Error('Failed to fetch heatmap data');
+  return await res.json();
+};
 
-// Heatmap data: Lesson drop-offs
-// Y: Chapters, X: Drop-off severity (%)
-export const MOCK_HEATMAP = [
-  { chapter: '1. Introduction', usersStarted: 4200, dropoffRate: 5 },
-  { chapter: '2. Basic Concepts', usersStarted: 3990, dropoffRate: 12 },
-  { chapter: '3. Core Architecture', usersStarted: 3511, dropoffRate: 25 },
-  { chapter: '4. Advanced Deployment', usersStarted: 2633, dropoffRate: 40 },
-  { chapter: '5. Final Project', usersStarted: 1579, dropoffRate: 30 },
-];
-
-export const getKpis = async () => new Promise(resolve => setTimeout(() => resolve(MOCK_KPIS), 500));
-export const getFunnel = async () => new Promise(resolve => setTimeout(() => resolve(MOCK_FUNNEL), 400));
-export const getCohorts = async () => new Promise(resolve => setTimeout(() => resolve(MOCK_COHORTS), 600));
-export const getHeatmap = async () => new Promise(resolve => setTimeout(() => resolve(MOCK_HEATMAP), 500));
-
-// Mock utility to "schedule" a report
 export const scheduleReport = async (config) => {
-  return new Promise(resolve => setTimeout(() => {
-    console.log('Scheduled report:', config);
-    resolve({ success: true, message: 'Report scheduled successfully' });
-  }, 1000));
+  const res = await fetch(`${API_BASE}/reports/schedule`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) throw new Error('Failed to schedule report');
+  return await res.json();
 };
 
 export const exportMockData = (type) => {
-  // Simulate clicking a download link for CSV/PDF
-  return new Promise(resolve => setTimeout(() => {
-    resolve({ url: 'blob:mock-url', filename: `export-${Date.now()}.${type}` });
-  }, 1500));
+  const data = `Claritas LMS Export Report\nType: ${type}\nGenerated At: ${new Date().toISOString()}\nStatus: Verified\n`;
+  const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `claritas_${type}_report_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 };

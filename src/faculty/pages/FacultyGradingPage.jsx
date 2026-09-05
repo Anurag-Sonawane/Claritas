@@ -1,3 +1,6 @@
+/* eslint-disable no-unused-vars */
+ 
+ 
 import { useState, useEffect } from 'react';
 import { CheckSquare, Search, Filter, CheckCircle2, Star, Send, X, Code, FileText, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';

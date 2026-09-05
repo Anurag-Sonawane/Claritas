@@ -1,0 +1,183 @@
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
+import { z } from 'zod';
+import { db } from '../db.js';
+import { env } from '../config/env.js';
+import { authenticateToken } from '../middleware/auth.js';
+import { authLimiter, validateBody } from '../middleware/security.js';
+
+const router = express.Router();
+
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(['student', 'faculty', 'admin']).default('student'),
+  department: z.string().optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean().optional().default(false)
+});
+
+function generateAccessToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role, name: user.name, jti: crypto.randomUUID() },
+    env.JWT_SECRET,
+    { expiresIn: env.JWT_EXPIRES_IN }
+  );
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, jti: crypto.randomUUID() },
+    env.JWT_REFRESH_SECRET,
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+  );
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// ── Register ──
+router.post('/register', authLimiter, validateBody(registerSchema), (req, res) => {
+  const { name, email, password, role, department } = req.validatedBody;
+
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (existing) {
+    return res.status(400).json({ error: 'An account with this email already exists' });
+  }
+
+  const id = `user-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const passHash = bcrypt.hashSync(password, 10);
+  const roleName = role === 'faculty' ? 'Associate Professor' : role === 'admin' ? 'Administrator' : 'Student';
+  const resolvedDept = department || (role === 'faculty' ? 'Computer Science & Engineering' : 'Computer Science');
+  const bg = role === 'faculty' ? '0d9488' : role === 'admin' ? 'f87171' : '2ec4f1';
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&rounded=true`;
+
+  db.prepare(`
+    INSERT INTO users (id, email, password_hash, name, role, role_name, department, organization, status, last_active_at, avatar_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'Claritas University', 'pending', NULL, ?)
+  `).run(id, email, passHash, name, role, roleName, resolvedDept, avatarUrl);
+
+  res.status(201).json({
+    success: true,
+    message: 'Registration request submitted successfully. Account pending administrator approval.',
+    user: { id, email, name, role, status: 'pending' }
+  });
+});
+
+// ── Login ──
+router.post('/login', authLimiter, validateBody(loginSchema), (req, res) => {
+  const { email, password } = req.validatedBody;
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  if (user.status === 'pending') {
+    return res.status(403).json({ error: 'Account approval pending. Please wait for an administrator to approve your request.' });
+  }
+
+  if (user.status === 'suspended') {
+    return res.status(403).json({ error: 'Account suspended. Contact administration for assistance.' });
+  }
+
+  const isValidPassword = bcrypt.compareSync(password, user.password_hash);
+  if (!isValidPassword) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  // Update last active
+  const now = new Date().toISOString();
+  db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, user.id);
+
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  // Store hashed refresh token in database
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const tokenHash = hashToken(refreshToken);
+  const tokenId = `rt-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+  db.prepare(`
+    INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(token_hash) DO UPDATE SET expires_at = excluded.expires_at, created_at = excluded.created_at, revoked_at = NULL
+  `).run(tokenId, user.id, tokenHash, expiresAt, now);
+
+  const { password_hash: _ph, ...safeUser } = user;
+  res.json({
+    token: accessToken,
+    refreshToken,
+    user: safeUser
+  });
+});
+
+// ── Refresh Token ──
+router.post('/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh token is required' });
+  }
+
+  jwt.verify(refreshToken, env.JWT_REFRESH_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const tHash = hashToken(refreshToken);
+    const stored = db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL').get(tHash);
+
+    if (!stored) {
+      return res.status(403).json({ error: 'Refresh token has been revoked or is invalid' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
+    if (!user || user.status !== 'active') {
+      return res.status(403).json({ error: 'User is inactive or not found' });
+    }
+
+    const newAccessToken = generateAccessToken(user);
+    res.json({ token: newAccessToken });
+  });
+});
+
+// ── Logout ──
+router.post('/logout', authenticateToken, (req, res) => {
+  const { refreshToken } = req.body;
+  if (refreshToken) {
+    const tHash = hashToken(refreshToken);
+    db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?').run(new Date().toISOString(), tHash);
+  } else {
+    // Revoke all active tokens for this user
+    db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), req.user.id);
+  }
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// ── Current User Profile ──
+router.get('/me', authenticateToken, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const permissions = db.prepare('SELECT permission FROM user_permissions WHERE user_id = ?').all(user.id).map(p => p.permission);
+
+  const { password_hash: _ph, ...safeUser } = user;
+  res.json({
+    user: {
+      ...safeUser,
+      permissions
+    }
+  });
+});
+
+export default router;

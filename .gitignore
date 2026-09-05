@@ -17,8 +17,18 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Environment & Local Secrets
+.env
+*.env
+!.env.example
+
+# SQLite Databases & WAL files
+server/*.sqlite
+server/*.sqlite-shm
+server/*.sqlite-wal
+
+# Temporary Lint & Test Artefacts
+lint-results.json
+lint-summary.json
+coverage/
+

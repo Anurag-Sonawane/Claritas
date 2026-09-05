@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Award, Download, Save, Type, Palette } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Award, Download, Save, Type, Palette, Check } from 'lucide-react';
+import { getCertificates, createCertificate } from '../services/operationsMockService.js';
 import './CertificatesPage.css';
 
 const TEMPLATE_VARS = ['{{student_name}}', '{{course_name}}', '{{issue_date}}', '{{score}}'];
@@ -15,9 +16,60 @@ export default function CertificatesPage() {
   });
 
   const [activeTab, setActiveTab] = useState('content');
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
+  useEffect(() => {
+    async function loadCerts() {
+      try {
+        const res = await getCertificates();
+        if (res?.data && res.data.length > 0) {
+          const first = res.data[0];
+          try {
+            const parsedRules = typeof first.rules === 'string' ? JSON.parse(first.rules) : first.rules;
+            if (parsedRules) {
+              setTemplate(prev => ({
+                ...prev,
+                title: first.name || prev.title,
+                ...parsedRules
+              }));
+            }
+          } catch {
+            // keep default
+          }
+        }
+      } catch (err) {
+        console.warn('Certificate load error:', err);
+      }
+    }
+    loadCerts();
+  }, []);
 
   const insertVar = (v) => {
     setTemplate(prev => ({ ...prev, body: prev.body + ' ' + v }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await createCertificate({
+        name: template.title,
+        course: 'General / All Courses',
+        rules: JSON.stringify({
+          subtitle: template.subtitle,
+          body: template.body,
+          dateText: template.dateText,
+          gradientInfo: template.gradientInfo,
+          textColor: template.textColor
+        })
+      });
+      setSavedMsg('Template saved to backend!');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (e) {
+      alert('Failed to save certificate: ' + e.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -25,7 +77,14 @@ export default function CertificatesPage() {
       <div className="courses-header">
         <h1><Award size={24} style={{ color: 'var(--primary)' }} /> Certificate Templates</h1>
         <div className="courses-toolbar">
-          <button className="btn-primary"><Save size={16} /> Save Template</button>
+          {savedMsg && (
+            <span style={{ color: '#10b981', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
+              <Check size={16} /> {savedMsg}
+            </span>
+          )}
+          <button className="btn-primary" onClick={handleSave} disabled={isSaving}>
+            <Save size={16} /> {isSaving ? 'Saving...' : 'Save Template'}
+          </button>
         </div>
       </div>
 
