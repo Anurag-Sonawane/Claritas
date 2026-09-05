@@ -14,7 +14,7 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('1h'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:3000'),
-  DATABASE_URL: z.string().default('file:./server/claritas.sqlite'),
+  DATABASE_URL: z.string().default(''),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().default(200),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),

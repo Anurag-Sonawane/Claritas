@@ -6,38 +6,50 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 const router = express.Router();
 
 // ── Announcements ──
-router.get('/announcements', (req, res) => {
-  const notices = db.prepare('SELECT * FROM announcements ORDER BY created_at DESC').all();
-  res.json(notices);
+router.get('/announcements', async (req, res) => {
+  try {
+    const notices = await db.all('SELECT * FROM announcements ORDER BY created_at DESC');
+    res.json(notices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/announcements', authenticateToken, requireRole(['faculty', 'admin']), (req, res) => {
-  const { title, category, content } = req.body;
-  if (!title || !category || !content) {
-    return res.status(400).json({ error: 'Title, category, and content are required' });
+router.post('/announcements', authenticateToken, requireRole(['faculty', 'admin']), async (req, res) => {
+  try {
+    const { title, category, content } = req.body;
+    if (!title || !category || !content) {
+      return res.status(400).json({ error: 'Title, category, and content are required' });
+    }
+
+    const id = `ann-${Date.now()}`;
+    const now = new Date().toISOString().split('T')[0];
+    const author = req.user.name || 'Academic Affairs';
+
+    await db.run(`
+      INSERT INTO announcements (id, title, category, content, author, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [id, title, category, content, author, now]);
+
+    const created = await db.get('SELECT * FROM announcements WHERE id = ?', id);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const id = `ann-${Date.now()}`;
-  const now = new Date().toISOString().split('T')[0];
-  const author = req.user.name || 'Academic Affairs';
-
-  db.prepare(`
-    INSERT INTO announcements (id, title, category, content, author, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, title, category, content, author, now);
-
-  const created = db.prepare('SELECT * FROM announcements WHERE id = ?').get(id);
-  res.status(201).json(created);
 });
 
 // ── Assessments ──
-router.get('/assessments', (req, res) => {
-  const assessments = db.prepare(`
-    SELECT a.*, c.title as course_title, c.code as course_code
-    FROM assessments a
-    JOIN courses c ON a.course_id = c.id
-  `).all();
-  res.json(assessments);
+router.get('/assessments', async (req, res) => {
+  try {
+    const assessments = await db.all(`
+      SELECT a.*, c.title as course_title, c.code as course_code
+      FROM assessments a
+      JOIN courses c ON a.course_id = c.id
+    `);
+    res.json(assessments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Safe Sandbox Execution ──

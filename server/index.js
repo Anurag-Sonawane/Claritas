@@ -18,19 +18,24 @@ import aiRoutes from './routes/aiRoutes.js';
 
 const app = express();
 
-// Initialize Database Schema and Indexes
-initDatabase();
-
-// Auto-seed on fresh cloud deployment if database has no users
-try {
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get()?.count || 0;
-  if (userCount === 0) {
-    console.log('🌱 Fresh deployment detected. Auto-seeding initial users and courses...');
-    runSeed(false);
+// Initialize Database Schema and Auto-seed if empty
+async function bootstrapDatabase() {
+  await initDatabase();
+  try {
+    const row = await db.get('SELECT COUNT(*) as count FROM users');
+    const userCount = Number(row?.count || 0);
+    if (userCount === 0) {
+      console.log('🌱 Fresh deployment detected. Auto-seeding initial users and courses...');
+      await runSeed(false);
+    }
+  } catch (e) {
+    console.warn('Auto-seed check notice:', e.message);
   }
-} catch (e) {
-  console.warn('Auto-seed check notice:', e.message);
 }
+
+bootstrapDatabase().catch(err => {
+  console.error('Database bootstrap error:', err);
+});
 
 // ── Core Middlewares ──
 app.use(securityHeaders);
@@ -65,7 +70,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
-    db: 'SQLite WAL Mode Online with Indexes & Foreign Keys'
+    db: db.provider === 'postgres' ? 'PostgreSQL (Cloud Pool Connected)' : 'SQLite WAL Mode Online with Indexes & Foreign Keys',
+    provider: db.provider
   });
 });
 

@@ -12,7 +12,7 @@ describe('Comprehensive End-to-End LMS Platform Test Suite', () => {
   let testApiKeyId = '';
 
   beforeAll(async () => {
-    initDatabase();
+    await initDatabase();
 
     // 1. Authenticate Admin
     const adminRes = await request(app)

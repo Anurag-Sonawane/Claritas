@@ -5,76 +5,87 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 const router = express.Router();
 
 // ── Student Assessment Submission (Authenticated for Student/Faculty/Admin) ──
-router.post('/assessments/:id/submit', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  const { answers = {}, timeSpentSeconds = 0 } = req.body;
-  const studentId = req.user.id || req.body.studentId || 'usr-student-01';
-  const subId = `asub-${Date.now()}`;
-  const now = new Date().toISOString();
+router.post('/assessments/:id/submit', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { answers = {}, timeSpentSeconds = 0 } = req.body;
+    const studentId = req.user.id || req.body.studentId || 'usr-student-01';
+    const subId = `asub-${Date.now()}`;
+    const now = new Date().toISOString();
 
-  // Scoring calculation
-  const _totalQuestions = Object.keys(answers).length || 2;
-  const score = 85;
-  const passed = score >= 70;
+    // Scoring calculation
+    const score = 85;
+    const passed = score >= 70;
 
-  db.prepare(`
-    INSERT INTO assessment_submissions (id, assessment_id, student_id, score, status, submitted_at, answers_json)
-    VALUES (?, ?, ?, ?, 'Graded', ?, ?)
-  `).run(subId, id, studentId, score, now, JSON.stringify(answers));
+    await db.run(`
+      INSERT INTO assessment_submissions (id, assessment_id, student_id, score, status, submitted_at, answers_json)
+      VALUES (?, ?, ?, ?, 'Graded', ?, ?)
+    `, [subId, id, studentId, score, now, JSON.stringify(answers)]);
 
-  res.json({
-    id: subId,
-    assessmentId: id,
-    studentId,
-    score,
-    passed,
-    timeSpentSeconds,
-    submittedAt: now
-  });
+    res.json({
+      id: subId,
+      assessmentId: id,
+      studentId,
+      score,
+      passed,
+      timeSpentSeconds,
+      submittedAt: now
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.use(authenticateToken, requireRole(['admin', 'faculty']));
 
 // ── Assessments List ──
-router.get('/assessments', (req, res) => {
-  const rows = db.prepare(`
-    SELECT a.*, c.title as course_title, c.code as course_code
-    FROM assessments a
-    JOIN courses c ON a.course_id = c.id
-  `).all();
+router.get('/assessments', async (req, res) => {
+  try {
+    const rows = await db.all(`
+      SELECT a.*, c.title as course_title, c.code as course_code
+      FROM assessments a
+      JOIN courses c ON a.course_id = c.id
+    `);
 
-  const enriched = rows.map(r => ({
-    id: r.id,
-    title: r.title,
-    course: `${r.course_code} - ${r.course_title}`,
-    attempts: 45,
-    avgScore: '84%',
-    status: r.status,
-    totalQuestions: r.total_questions,
-    durationMins: r.duration_mins
-  }));
+    const enriched = rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      course: `${r.course_code} - ${r.course_title}`,
+      attempts: 45,
+      avgScore: '84%',
+      status: r.status,
+      totalQuestions: r.total_questions,
+      durationMins: r.duration_mins
+    }));
 
-  res.json(enriched);
+    res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Question Bank ──
-router.get('/questions', (req, res) => {
-  const { type, difficulty, search } = req.query;
-  let sql = 'SELECT * FROM question_bank WHERE 1=1';
-  const params = [];
+router.get('/questions', async (req, res) => {
+  try {
+    const { type, difficulty, search } = req.query;
+    let sql = 'SELECT * FROM question_bank WHERE 1=1';
+    const params = [];
 
-  if (type && type !== 'all') { sql += ' AND type = ?'; params.push(type); }
-  if (difficulty && difficulty !== 'all') { sql += ' AND difficulty = ?'; params.push(difficulty); }
-  if (search) { sql += ' AND text LIKE ?'; params.push(`%${search}%`); }
+    if (type && type !== 'all') { sql += ' AND type = ?'; params.push(type); }
+    if (difficulty && difficulty !== 'all') { sql += ' AND difficulty = ?'; params.push(difficulty); }
+    if (search) { sql += ' AND text LIKE ?'; params.push(`%${search}%`); }
 
-  const rows = db.prepare(sql).all(...params);
-  const parsed = rows.map(r => ({
-    ...r,
-    tags: r.tags_json ? JSON.parse(r.tags_json) : [],
-    options: r.options_json ? JSON.parse(r.options_json) : []
-  }));
+    const rows = await db.all(sql, params);
+    const parsed = rows.map(r => ({
+      ...r,
+      tags: r.tags_json ? JSON.parse(r.tags_json) : [],
+      options: r.options_json ? JSON.parse(r.options_json) : []
+    }));
 
-  res.json(parsed);
+    res.json(parsed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/questions/generate-ai', (req, res) => {
@@ -92,44 +103,56 @@ router.post('/questions/generate-ai', (req, res) => {
   res.json({ success: true, questions });
 });
 
-router.post('/questions', (req, res) => {
-  const { text, type, difficulty = 'Medium', tags = [], options = [], answer = '', points = 10 } = req.body;
-  if (!text || !type) {
-    return res.status(400).json({ error: 'Question text and type are required' });
+router.post('/questions', async (req, res) => {
+  try {
+    const { text, type, difficulty = 'Medium', tags = [], options = [], answer = '', points = 10 } = req.body;
+    if (!text || !type) {
+      return res.status(400).json({ error: 'Question text and type are required' });
+    }
+
+    const id = `q-${Date.now()}`;
+    await db.run(`
+      INSERT INTO question_bank (id, course_id, text, type, difficulty, tags_json, options_json, answer, points)
+      VALUES (?, 'crs-001', ?, ?, ?, ?, ?, ?, ?)
+    `, [id, text, type, difficulty, JSON.stringify(tags), JSON.stringify(options), answer, points]);
+
+    res.status(201).json({ id, text, type, difficulty, tags, options, answer, points });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const id = `q-${Date.now()}`;
-  db.prepare(`
-    INSERT INTO question_bank (id, course_id, text, type, difficulty, tags_json, options_json, answer, points)
-    VALUES (?, 'crs-001', ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, text, type, difficulty, JSON.stringify(tags), JSON.stringify(options), answer, points);
-
-  res.status(201).json({ id, text, type, difficulty, tags, options, answer, points });
 });
 
 // ── Grading Queue ──
-router.get('/grading-queue', (req, res) => {
-  const submissions = db.prepare("SELECT * FROM assessment_submissions WHERE status = 'Pending' ORDER BY submitted_at DESC").all();
-  res.json(submissions);
+router.get('/grading-queue', async (req, res) => {
+  try {
+    const submissions = await db.all("SELECT * FROM assessment_submissions WHERE status = 'Pending' ORDER BY submitted_at DESC");
+    res.json(submissions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/grading-queue/:id/grade', (req, res) => {
-  const { id } = req.params;
-  const { score, feedback } = req.body;
+router.post('/grading-queue/:id/grade', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { score, feedback } = req.body;
 
-  if (score === undefined || score === null) {
-    return res.status(400).json({ error: 'Score is required' });
+    if (score === undefined || score === null) {
+      return res.status(400).json({ error: 'Score is required' });
+    }
+
+    await db.run(`
+      UPDATE assessment_submissions SET
+        score = ?,
+        feedback = ?,
+        status = 'Graded'
+      WHERE id = ?
+    `, [score, feedback || '', id]);
+
+    res.json({ success: true, message: 'Grade submitted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  db.prepare(`
-    UPDATE assessment_submissions SET
-      score = ?,
-      feedback = ?,
-      status = 'Graded'
-    WHERE id = ?
-  `).run(score, feedback || '', id);
-
-  res.json({ success: true, message: 'Grade submitted successfully' });
 });
 
 // ── Plagiarism Simulator ──

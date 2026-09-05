@@ -8,7 +8,7 @@ describe('Core LMS Workflows & Database Sync Suite', () => {
   let studentToken = '';
 
   beforeAll(async () => {
-    initDatabase();
+    await initDatabase();
 
     const adminLogin = await request(app)
       .post('/api/auth/login')

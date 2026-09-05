@@ -45,10 +45,10 @@ function hashToken(token) {
 }
 
 // ── Register ──
-router.post('/register', authLimiter, validateBody(registerSchema), (req, res) => {
+router.post('/register', authLimiter, validateBody(registerSchema), async (req, res) => {
   const { name, email, password, role, department } = req.validatedBody;
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = await db.get('SELECT id FROM users WHERE email = ?', email);
   if (existing) {
     return res.status(400).json({ error: 'An account with this email already exists' });
   }
@@ -60,10 +60,10 @@ router.post('/register', authLimiter, validateBody(registerSchema), (req, res) =
   const bg = role === 'faculty' ? '0d9488' : role === 'admin' ? 'f87171' : '2ec4f1';
   const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bg}&color=fff&rounded=true`;
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO users (id, email, password_hash, name, role, role_name, department, organization, status, last_active_at, avatar_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'Claritas University', 'pending', NULL, ?)
-  `).run(id, email, passHash, name, role, roleName, resolvedDept, avatarUrl);
+  `, [id, email, passHash, name, role, roleName, resolvedDept, avatarUrl]);
 
   res.status(201).json({
     success: true,
@@ -73,10 +73,10 @@ router.post('/register', authLimiter, validateBody(registerSchema), (req, res) =
 });
 
 // ── Login ──
-router.post('/login', authLimiter, validateBody(loginSchema), (req, res) => {
+router.post('/login', authLimiter, validateBody(loginSchema), async (req, res) => {
   const { email, password } = req.validatedBody;
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const user = await db.get('SELECT * FROM users WHERE email = ?', email);
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
@@ -96,7 +96,7 @@ router.post('/login', authLimiter, validateBody(loginSchema), (req, res) => {
 
   // Update last active
   const now = new Date().toISOString();
-  db.prepare('UPDATE users SET last_active_at = ? WHERE id = ?').run(now, user.id);
+  await db.run('UPDATE users SET last_active_at = ? WHERE id = ?', [now, user.id]);
 
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
@@ -106,11 +106,11 @@ router.post('/login', authLimiter, validateBody(loginSchema), (req, res) => {
   const tokenHash = hashToken(refreshToken);
   const tokenId = `rt-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(token_hash) DO UPDATE SET expires_at = excluded.expires_at, created_at = excluded.created_at, revoked_at = NULL
-  `).run(tokenId, user.id, tokenHash, expiresAt, now);
+  `, [tokenId, user.id, tokenHash, expiresAt, now]);
 
   const { password_hash: _ph, ...safeUser } = user;
   res.json({
@@ -127,49 +127,53 @@ router.post('/refresh', (req, res) => {
     return res.status(400).json({ error: 'Refresh token is required' });
   }
 
-  jwt.verify(refreshToken, env.JWT_REFRESH_SECRET, (err, decoded) => {
+  jwt.verify(refreshToken, env.JWT_REFRESH_SECRET, async (err, decoded) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired refresh token' });
     }
 
-    const tHash = hashToken(refreshToken);
-    const stored = db.prepare('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL').get(tHash);
+    try {
+      const tHash = hashToken(refreshToken);
+      const stored = await db.get('SELECT * FROM refresh_tokens WHERE token_hash = ? AND revoked_at IS NULL', tHash);
 
-    if (!stored) {
-      return res.status(403).json({ error: 'Refresh token has been revoked or is invalid' });
+      if (!stored) {
+        return res.status(403).json({ error: 'Refresh token has been revoked or is invalid' });
+      }
+
+      const user = await db.get('SELECT * FROM users WHERE id = ?', decoded.id);
+      if (!user || user.status !== 'active') {
+        return res.status(403).json({ error: 'User is inactive or not found' });
+      }
+
+      const newAccessToken = generateAccessToken(user);
+      res.json({ token: newAccessToken });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
-
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
-    if (!user || user.status !== 'active') {
-      return res.status(403).json({ error: 'User is inactive or not found' });
-    }
-
-    const newAccessToken = generateAccessToken(user);
-    res.json({ token: newAccessToken });
   });
 });
 
 // ── Logout ──
-router.post('/logout', authenticateToken, (req, res) => {
+router.post('/logout', authenticateToken, async (req, res) => {
   const { refreshToken } = req.body;
   if (refreshToken) {
     const tHash = hashToken(refreshToken);
-    db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?').run(new Date().toISOString(), tHash);
+    await db.run('UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?', [new Date().toISOString(), tHash]);
   } else {
     // Revoke all active tokens for this user
-    db.prepare('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(new Date().toISOString(), req.user.id);
+    await db.run('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', [new Date().toISOString(), req.user.id]);
   }
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // ── Current User Profile ──
-router.get('/me', authenticateToken, (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+router.get('/me', authenticateToken, async (req, res) => {
+  const user = await db.get('SELECT * FROM users WHERE id = ?', req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const permissions = db.prepare('SELECT permission FROM user_permissions WHERE user_id = ?').all(user.id).map(p => p.permission);
+  const permissions = (await db.all('SELECT permission FROM user_permissions WHERE user_id = ?', user.id)).map(p => p.permission);
 
   const { password_hash: _ph, ...safeUser } = user;
   res.json({

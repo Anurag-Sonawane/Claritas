@@ -1,11 +1,11 @@
-﻿import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import app from '../server/index.js';
 import { initDatabase } from '../server/db.js';
 
 describe('Auth & RBAC Security Suite', () => {
-  beforeAll(() => {
-    initDatabase();
+  beforeAll(async () => {
+    await initDatabase();
   });
 
   let adminToken = '';
