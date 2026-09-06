@@ -19,15 +19,16 @@ router.get('/dashboard', async (req, res) => {
       WHERE e.student_id = ?
     `, [studentId]);
 
+    const today = new Date().toISOString().split('T')[0];
     const upcomingAssignments = await db.all(`
       SELECT a.id, a.title, a.due_date, a.max_score, c.code as course_code
       FROM assignments a
       JOIN courses c ON a.course_id = c.id
       JOIN enrollments e ON e.course_id = c.id
-      WHERE e.student_id = ? AND a.due_date >= CURRENT_DATE
+      WHERE e.student_id = ? AND a.due_date >= ?
       ORDER BY a.due_date ASC
       LIMIT 5
-    `, [studentId]);
+    `, [studentId, today]);
 
     const attendanceRows = await db.all('SELECT status FROM attendance_records WHERE student_id = ?', [studentId]);
     const presentCount = attendanceRows.filter(r => r.status === 'Present').length;

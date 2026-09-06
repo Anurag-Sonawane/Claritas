@@ -366,7 +366,7 @@ describe('Comprehensive End-to-End LMS Platform Test Suite', () => {
       expect(gdprRes.status).toBe(200);
       expect(gdprRes.body.success).toBe(true);
 
-      const checkUser = db.prepare('SELECT status FROM users WHERE id = ?').get(tempId);
+      const checkUser = await db.get('SELECT status FROM users WHERE id = ?', [tempId]);
       expect(checkUser.status).toBe('deleted');
     });
   });

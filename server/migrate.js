@@ -12,9 +12,14 @@ export async function runMigration() {
 
   if (isPostgres) {
     const { Pool } = pg;
-    const isSsl = env.NODE_ENV === 'production' || env.DATABASE_URL.includes('sslmode=require');
+    const isSsl = env.NODE_ENV === 'production' || 
+                  env.DATABASE_URL.includes('sslmode=require') || 
+                  env.DATABASE_URL.includes('supabase.co') || 
+                  env.DATABASE_URL.includes('pooler.supabase.com') ||
+                  env.DATABASE_URL.includes('neon.tech');
+    const cleanConnectionString = env.DATABASE_URL.replace(/[?&]sslmode=[^&]+/, '');
     const pool = new Pool({
-      connectionString: env.DATABASE_URL,
+      connectionString: cleanConnectionString,
       ssl: isSsl ? { rejectUnauthorized: false } : undefined,
     });
 
