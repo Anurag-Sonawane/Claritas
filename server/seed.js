@@ -357,6 +357,48 @@ export async function runSeed(dropTables = false) {
   console.log('✅ Claritas Database successfully seeded with all LMS tables & relational test data.');
 }
 
+export async function ensureAdminAccount() {
+  try {
+    const existingAdmin = await db.get("SELECT id, email, status FROM users WHERE role = 'admin' LIMIT 1");
+    if (!existingAdmin) {
+      console.log('⚡ No admin account detected. Auto-creating primary administrator account...');
+      const passHash = bcrypt.hashSync('password', 10);
+      const now = new Date().toISOString();
+      const adminId = 'user-001';
+      const adminEmail = 'admin@claritas.edu';
+
+      const existingByEmail = await db.get('SELECT id FROM users WHERE LOWER(email) = ?', [adminEmail.toLowerCase()]);
+      if (existingByEmail) {
+        await db.run("UPDATE users SET role = 'admin', status = 'active', password_hash = ? WHERE id = ?", [passHash, existingByEmail.id]);
+      } else {
+        await db.run(`
+          INSERT INTO users (id, email, password_hash, name, role, role_name, department, organization, status, last_active_at, avatar_url)
+          VALUES (?, ?, ?, ?, 'admin', 'Super Admin', 'Administration', 'Claritas University', 'active', ?, ?)
+        `, [adminId, adminEmail, passHash, 'Aarav Sharma', now, 'https://ui-avatars.com/api/?name=Aarav+Sharma&background=f87171&color=fff&rounded=true']);
+      }
+
+      const adminPerms = ['users:manage', 'courses:manage', 'certificates:manage', 'reports:view', 'audit:view', 'settings:manage', '*'];
+      for (let idx = 0; idx < adminPerms.length; idx++) {
+        await db.run(`
+          INSERT INTO user_permissions (id, user_id, permission)
+          VALUES (?, ?, ?)
+          ON CONFLICT DO NOTHING
+        `, [`perm-adm-${idx}`, adminId, adminPerms[idx]]);
+      }
+      console.log('✅ Primary admin account ensured: admin@claritas.edu (ID: admin / user-001)');
+      return true;
+    } else if (existingAdmin.status !== 'active') {
+      await db.run("UPDATE users SET status = 'active' WHERE id = ?", [existingAdmin.id]);
+      console.log(`✅ Admin account (${existingAdmin.email}) activated.`);
+    }
+    return false;
+  } catch (err) {
+    console.error('Notice in ensureAdminAccount:', err.message);
+    return false;
+  }
+}
+
+
 // Auto-run if executed directly via CLI
 const currentFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && currentFile.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop())) {

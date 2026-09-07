@@ -47,8 +47,9 @@ export default function LoginPage() {
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter both email and password.');
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError('Please enter both email/username and password.');
       return;
     }
 
@@ -57,7 +58,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const loggedInUser = await login(email, password, rememberMe);
+      const loggedInUser = await login(cleanEmail, password, rememberMe);
       const from = location.state?.from?.pathname;
       if (from) {
         navigate(from, { replace: true });
@@ -200,16 +201,17 @@ export default function LoginPage() {
             /* ── Login Form ── */
             <form className="login-form" onSubmit={handleLoginSubmit}>
               <div className="form-group">
-                <label htmlFor="email">Email Address</label>
+                <label htmlFor="email">Email or Username / ID</label>
                 <div className="input-wrapper">
                   <Mail size={18} className="input-icon" />
                   <input
                     id="email"
-                    type="email"
-                    placeholder="admin@claritas.edu"
+                    type="text"
+                    placeholder="admin@claritas.edu or admin"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isSubmitting}
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -225,6 +227,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isSubmitting}
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -256,12 +259,61 @@ export default function LoginPage() {
                 {isSubmitting ? <>Signing in...</> : <>Sign In</>}
               </button>
               
-              <div style={{ marginTop: 24, padding: 16, background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--glass-border)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--muted)' }}>
-                <strong>Test Credentials:</strong><br/>
-                Admin: <code>admin@claritas.edu</code><br/>
-                Faculty: <code>teacher@claritas.edu</code><br/>
-                Student: <code>student@claritas.edu</code><br/>
-                Password: <code>password</code>
+              <div style={{ marginTop: 20, padding: 14, background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--glass-border)', borderRadius: 10, fontSize: '0.82rem', color: 'var(--muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <strong style={{ color: 'var(--foreground)' }}>Quick Demo Sign-In:</strong>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>Click role to auto-fill</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('admin@claritas.edu');
+                      setPassword('password');
+                      setError('');
+                    }}
+                    style={{
+                      padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                      background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#f87171', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    👑 Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('teacher@claritas.edu');
+                      setPassword('password');
+                      setError('');
+                    }}
+                    style={{
+                      padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                      background: 'rgba(13, 148, 136, 0.12)', border: '1px solid rgba(13, 148, 136, 0.3)',
+                      color: '#2dd4bf', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    🎓 Faculty
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('student@claritas.edu');
+                      setPassword('password');
+                      setError('');
+                    }}
+                    style={{
+                      padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                      background: 'rgba(46, 196, 241, 0.12)', border: '1px solid rgba(46, 196, 241, 0.3)',
+                      color: '#38bdf8', fontWeight: 600, fontSize: '0.78rem', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    🎒 Student
+                  </button>
+                </div>
+                <div style={{ marginTop: 8, fontSize: '0.75rem', opacity: 0.75 }}>
+                  Admin login accepts ID: <code>admin</code> or <code>admin@claritas.edu</code> | Pass: <code>admin</code> or <code>password</code>
+                </div>
               </div>
             </form>
           ) : (

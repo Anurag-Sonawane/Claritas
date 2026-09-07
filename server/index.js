@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { env, corsOrigins } from './config/env.js';
 import { initDatabase, db } from './db.js';
-import { runSeed } from './seed.js';
+import { runSeed, ensureAdminAccount } from './seed.js';
 import { securityHeaders, apiLimiter } from './middleware/security.js';
 import { getStorageInfo } from './services/storageService.js';
 
@@ -29,6 +29,9 @@ async function bootstrapDatabase() {
     if (userCount === 0) {
       console.log('🌱 Fresh deployment detected. Auto-seeding initial users and courses...');
       await runSeed(false);
+    } else {
+      // Guarantee an active administrator account is always available
+      await ensureAdminAccount();
     }
   } catch (e) {
     console.warn('Auto-seed check notice:', e.message);
@@ -113,7 +116,7 @@ app.use((err, req, res, _next) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   app.listen(env.PORT, () => {
     console.log(`🚀 Claritas Production API Server running on port ${env.PORT} [${env.NODE_ENV}]`);
   });
