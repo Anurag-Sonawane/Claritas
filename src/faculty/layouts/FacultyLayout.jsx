@@ -5,6 +5,7 @@ import {
   Sparkles, Code2, LogOut, Bell, User, CheckCircle
 } from 'lucide-react';
 import PageWrapper from '../../components/PageWrapper';
+import ProfileModal from '../../components/ProfileModal';
 import { useAuth } from '../../context/AuthContext';
 import './FacultyLayout.css';
 
@@ -22,6 +23,7 @@ export default function FacultyLayout() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const isActive = (link) => {
     if (link.exact) return location.pathname === link.path;
@@ -91,7 +93,11 @@ export default function FacultyLayout() {
                   <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.name}</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{user?.email}</div>
                 </div>
-                <button className="actions-menu-item" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--foreground)', cursor: 'pointer', borderRadius: 6 }}>
+                <button 
+                  className="actions-menu-item" 
+                  onClick={() => { setShowProfileModal(true); setShowUserMenu(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px', background: 'transparent', border: 'none', color: 'var(--foreground)', cursor: 'pointer', borderRadius: 6 }}
+                >
                   <User size={16} /> Profile & Department
                 </button>
                 <div style={{ height: 1, background: 'var(--glass-border)', margin: '4px 0' }} />
@@ -103,6 +109,9 @@ export default function FacultyLayout() {
           </div>
         </div>
       </header>
+
+      {/* Profile Edit Modal */}
+      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
 
       {/* ── Main View Content ── */}
       <main className="faculty-main">

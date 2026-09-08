@@ -181,6 +181,19 @@
   font-size: 0.9rem;
   outline: none;
   transition: border-color var(--duration-fast);
+  color-scheme: dark;
+}
+
+select.form-input {
+  cursor: pointer;
+  background-color: #131b2e;
+}
+
+.form-input option,
+select.form-input option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 10px 14px;
 }
 
 .form-input:focus {

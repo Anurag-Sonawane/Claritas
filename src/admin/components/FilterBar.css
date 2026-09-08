@@ -53,7 +53,7 @@
 .filter-dropdown select {
   appearance: none;
   padding: 10px 36px 10px 14px;
-  background: var(--admin-input-bg);
+  background-color: #131b2e;
   border: 1px solid var(--admin-input-border);
   border-radius: var(--admin-input-radius);
   color: var(--foreground);
@@ -61,9 +61,16 @@
   cursor: pointer;
   outline: none;
   transition: border-color var(--duration-fast);
+  color-scheme: dark;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(247,248,250,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
+}
+
+.filter-dropdown select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px 12px;
 }
 
 .filter-dropdown select:focus {

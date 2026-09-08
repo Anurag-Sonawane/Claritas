@@ -79,7 +79,7 @@ export default function MediaManagerModal({ onClose, onSelect }) {
                 style={{ width: '100%', padding: '8px 12px 8px 32px', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-input-border)', borderRadius: 6, color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none' }}
               />
             </div>
-            <select value={mm.typeFilter} onChange={e => mm.setTypeFilter(e.target.value)} style={{ padding: '8px 12px', background: 'var(--admin-input-bg)', border: '1px solid var(--admin-input-border)', borderRadius: 6, color: 'var(--foreground)', fontSize: '0.82rem' }}>
+            <select value={mm.typeFilter} onChange={e => mm.setTypeFilter(e.target.value)} style={{ padding: '8px 12px', background: '#131b2e', border: '1px solid var(--admin-input-border)', borderRadius: 6, color: 'var(--foreground)', fontSize: '0.82rem', colorScheme: 'dark' }}>
               <option value="">All Types</option>
               <option value="pdf">PDF</option>
               <option value="docx">Word</option>

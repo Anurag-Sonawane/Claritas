@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Users, FileText, Search, Plus, Mail, ShieldAlert, CheckCircle, ChevronRight } from 'lucide-react';
+import { BookOpen, Users, FileText, Search, Plus, Mail, ShieldAlert, CheckCircle, ChevronRight, Edit } from 'lucide-react';
 import { api } from '../../services/api';
+import ProfileModal from '../../components/ProfileModal';
 
 export default function MyClassesPage() {
   const [courses, setCourses] = useState([
@@ -10,6 +11,7 @@ export default function MyClassesPage() {
   const [selectedCourse, setSelectedCourse] = useState('crs-001');
   const [searchTerm, setSearchTerm] = useState('');
   const [liveRoster, setLiveRoster] = useState([]);
+  const [editingStudent, setEditingStudent] = useState(null);
 
   useEffect(() => {
     async function loadCourses() {
@@ -178,7 +180,16 @@ export default function MyClassesPage() {
                         {student.status}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingStudent({ ...student, role: 'student' })}
+                        className="btn-outline btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        title="Edit Student Profile (Name, Photo)"
+                      >
+                        <Edit size={14} /> Edit Profile
+                      </button>
                       <a href={`mailto:${student.email}`} className="btn-outline btn-sm" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <Mail size={14} /> Email
                       </a>
@@ -196,6 +207,22 @@ export default function MyClassesPage() {
           </table>
         </div>
       </div>
+
+      {/* Student Profile Edit Modal */}
+      {editingStudent && (
+        <ProfileModal
+          isOpen={Boolean(editingStudent)}
+          onClose={() => setEditingStudent(null)}
+          targetUser={editingStudent}
+          onSuccess={(updated) => {
+            setLiveRoster(prev => prev.map(s => s.id === updated.id ? {
+              ...s,
+              name: updated.name,
+              avatar: updated.avatarUrl || updated.avatar_url || s.avatar
+            } : s));
+          }}
+        />
+      )}
     </div>
   );
 }

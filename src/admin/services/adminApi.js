@@ -27,6 +27,8 @@ export async function getUsers({ query = '', role = '', org = '', status = '', p
     const params = new URLSearchParams({
       search: query,
       role: role || '',
+      organization: org || '',
+      org: org || '',
       department: org || '',
       status: status || '',
       page,
@@ -47,10 +49,11 @@ export async function getUsers({ query = '', role = '', org = '', status = '', p
         id: u.id,
         name: u.name,
         email: u.email,
-        roleId: u.role === 'admin' ? 'role-super-admin' : u.role === 'faculty' ? 'role-course-mgr' : 'role-student',
+        role: u.role,
+        roleId: u.role === 'admin' ? 'role-super-admin' : u.role === 'faculty' ? 'role-instructor' : u.role === 'student' ? 'role-student' : (u.role || 'role-custom'),
         roleName: u.role_name || (u.role === 'admin' ? 'Super Admin' : u.role === 'faculty' ? 'Associate Professor' : 'Student'),
         organization: u.organization || u.department || 'Claritas University',
-        department: u.department,
+        department: u.department || 'General',
         status: u.status,
         lastActiveAt: u.last_active_at || 'Never',
         avatarUrl: u.avatar_url
@@ -62,15 +65,39 @@ export async function getUsers({ query = '', role = '', org = '', status = '', p
         totalPages: result.totalPages || 1
       },
       metrics: result.metrics,
-      departments: result.departments
+      departments: result.departments || [],
+      organizations: result.organizations || []
     };
   } catch (err) {
     console.warn('Admin API Notice: fallback to local cache:', err.message);
     let filtered = [..._users];
     if (query) {
       const q = query.toLowerCase();
-      filtered = filtered.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+      filtered = filtered.filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.organization && u.organization.toLowerCase().includes(q))
+      );
     }
+    if (role && role !== 'all') {
+      filtered = filtered.filter(u => u.roleId === role || u.roleName?.toLowerCase().includes(role.toLowerCase()));
+    }
+    if (org && org !== 'all') {
+      filtered = filtered.filter(u => u.organization === org || u.department === org);
+    }
+    if (status && status !== 'all') {
+      filtered = filtered.filter(u => u.status === status);
+    }
+    // Sorting
+    filtered.sort((a, b) => {
+      let valA = a[sortBy] || '';
+      let valB = b[sortBy] || '';
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
     const total = filtered.length;
     const start = (page - 1) * perPage;
     return { data: filtered.slice(start, start + perPage), meta: { total, page, perPage, totalPages: Math.ceil(total / perPage) } };
@@ -139,7 +166,7 @@ export async function reactivateUser(userId) {
 
 export async function approveUser(userId) {
   const res = await fetch(`${API_BASE}/admin/users/${userId}/approve`, {
-    method: 'PATCH',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
   });
   const data = await res.json();
@@ -149,7 +176,7 @@ export async function approveUser(userId) {
 
 export async function rejectUser(userId) {
   const res = await fetch(`${API_BASE}/admin/users/${userId}/reject`, {
-    method: 'PATCH',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
   });
   const data = await res.json();
@@ -299,6 +326,21 @@ export async function deleteRole(roleId) {
   return await res.json();
 }
 
+export async function getRoleUsers(roleId) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/roles/${roleId}/users`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch role users');
+    return await res.json();
+  } catch (err) {
+    console.warn('Falling back to local cache for role users:', err.message);
+    const { data: allUsers } = await getUsers({ perPage: 100 });
+    const users = allUsers.filter(u => u.roleId === roleId || u.roleName?.toLowerCase().includes(roleId.replace('role-', '')));
+    return { users };
+  }
+}
+
 // ── Internal Helpers ───────────────────────────────────────
 
 function _addAuditLog(action, targetType, targetId, targetName, reason = '') {
@@ -339,6 +381,7 @@ export default {
   getAuditLogs,
   sendInvites,
   getRoles,
+  getRoleUsers,
   createRole,
   updateRole,
   deleteRole,

@@ -16,7 +16,14 @@ export default function UserDetailSlideOver({ user, onClose, onUpdate, onImperso
 
   useEffect(() => {
     if (user) {
-      setEditData({ name: user.name, email: user.email, roleId: user.roleId, organization: user.organization, phone: user.phone || '' });
+      setEditData({
+        name: user.name,
+        email: user.email,
+        roleId: user.roleId,
+        organization: user.organization,
+        phone: user.phone || '',
+        avatarUrl: user.avatarUrl || user.avatar_url || ''
+      });
       setActiveTab('Profile');
       // Load audit for this user
       api.getAuditLogs({ actor: '', action: '', page: 1, perPage: 50 }).then(result => {
@@ -195,6 +202,23 @@ function ProfileTab({ editData, setEditData, onSave, saving, user }) {
       <div className="form-group">
         <label>Full Name</label>
         <input className="form-input" value={editData.name || ''} onChange={e => change('name', e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>Profile Photo URL</label>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <img
+            src={editData.avatarUrl || user.avatarUrl || 'https://ui-avatars.com/api/?name=User'}
+            alt=""
+            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--glass-border)' }}
+          />
+          <input
+            className="form-input"
+            value={editData.avatarUrl || ''}
+            onChange={e => change('avatarUrl', e.target.value)}
+            placeholder="https://..."
+            style={{ flex: 1 }}
+          />
+        </div>
       </div>
       <div className="form-group">
         <label>Email Address</label>

@@ -16,14 +16,28 @@ export default function useCourses() {
   const fetchCourses = useCallback(async (params = {}) => {
     setLoading(true);
     try {
+      const pageToFetch = params.page || meta?.page || 1;
+      const perPageToFetch = params.perPage || meta?.perPage || 12;
       const result = await api.getCourses({
-        query, ...filters, sortBy, sortDir, page: meta.page, perPage: meta.perPage, ...params,
+        query, ...filters, sortBy, sortDir, page: pageToFetch, perPage: perPageToFetch, ...params,
       });
-      setCourses(result.data);
-      setMeta(result.meta);
-    } catch (err) { console.error('Fetch courses failed:', err); }
-    finally { setLoading(false); }
-  }, [query, filters, sortBy, sortDir, meta.page, meta.perPage]);
+      setCourses(result.data || []);
+      if (result.meta) {
+        setMeta(result.meta);
+      } else {
+        setMeta({
+          total: result.total ?? (result.data || []).length,
+          page: result.page ?? pageToFetch,
+          perPage: perPageToFetch,
+          totalPages: result.totalPages ?? (Math.ceil((result.total ?? (result.data || []).length) / perPageToFetch) || 1)
+        });
+      }
+    } catch (err) {
+      console.error('Fetch courses failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [query, filters, sortBy, sortDir, meta?.page, meta?.perPage]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);

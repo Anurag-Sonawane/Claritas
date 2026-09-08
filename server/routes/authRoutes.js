@@ -2,14 +2,28 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
+import multer from 'multer';
 import { z } from 'zod';
 import { db } from '../db.js';
 import { env } from '../config/env.js';
 import { ensureAdminAccount } from '../seed.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 import { authLimiter, validateBody } from '../middleware/security.js';
+import { uploadFile } from '../services/storageService.js';
 
 const router = express.Router();
+
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPG, PNG, GIF, WebP) are allowed.'));
+    }
+  }
+});
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -158,7 +172,10 @@ router.post('/login', authLimiter, validateBody(loginSchema), async (req, res) =
   res.json({
     token: accessToken,
     refreshToken,
-    user: safeUser
+    user: {
+      ...safeUser,
+      avatarUrl: safeUser.avatar_url
+    }
   });
 });
 
@@ -221,9 +238,178 @@ router.get('/me', authenticateToken, async (req, res) => {
   res.json({
     user: {
       ...safeUser,
+      avatarUrl: safeUser.avatar_url,
       permissions
     }
   });
+});
+
+// ── Profile Photo Upload (Admin & Faculty Only) ──
+router.post('/profile/avatar', authenticateToken, requireRole(['admin', 'faculty']), avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided for upload' });
+    }
+
+    const uploadResult = await uploadFile({
+      buffer: req.file.buffer,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      folder: 'avatars'
+    });
+
+    const avatarUrl = uploadResult.cdnUrl;
+    const now = new Date().toISOString();
+
+    await db.run('UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?', [avatarUrl, now, req.user.id]);
+
+    const updatedUser = await db.get('SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url FROM users WHERE id = ?', req.user.id);
+
+    res.json({
+      success: true,
+      message: 'Profile photo updated successfully',
+      avatarUrl,
+      user: {
+        ...updatedUser,
+        avatarUrl: updatedUser.avatar_url
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to upload profile photo' });
+  }
+});
+
+// ── Update Own Profile: Name & Photo (Admin & Faculty Only) ──
+const handleProfileUpdate = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, avatarUrl, avatar_url } = req.body;
+    const resolvedAvatar = avatarUrl !== undefined ? avatarUrl : avatar_url;
+
+    const existing = await db.get('SELECT * FROM users WHERE id = ?', userId);
+    if (!existing) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updatedName = name?.trim() || existing.name;
+    const updatedAvatar = resolvedAvatar !== undefined ? resolvedAvatar : existing.avatar_url;
+    const now = new Date().toISOString();
+
+    await db.run(`
+      UPDATE users SET
+        name = ?,
+        avatar_url = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [updatedName, updatedAvatar, now, userId]);
+
+    const updated = await db.get('SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url FROM users WHERE id = ?', userId);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        ...updated,
+        avatarUrl: updated.avatar_url
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update profile' });
+  }
+};
+
+router.put('/profile', authenticateToken, requireRole(['admin', 'faculty']), handleProfileUpdate);
+router.patch('/profile', authenticateToken, requireRole(['admin', 'faculty']), handleProfileUpdate);
+
+// ── Edit Student / Other User Profile (Admin & Faculty Only) ──
+// Faculty can only edit student profiles; Admins can edit any user
+router.put('/users/:id/profile', authenticateToken, requireRole(['admin', 'faculty']), async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const { name, avatarUrl, avatar_url } = req.body;
+    const resolvedAvatar = avatarUrl !== undefined ? avatarUrl : avatar_url;
+
+    const targetUser = await db.get('SELECT * FROM users WHERE id = ?', targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Target user not found' });
+    }
+
+    // Faculty restriction: can only modify students
+    if (req.user.role === 'faculty' && targetUser.role !== 'student') {
+      return res.status(403).json({ error: 'Faculty members are only authorized to edit student profiles.' });
+    }
+
+    const updatedName = name?.trim() || targetUser.name;
+    const updatedAvatar = resolvedAvatar !== undefined ? resolvedAvatar : targetUser.avatar_url;
+    const now = new Date().toISOString();
+
+    await db.run(`
+      UPDATE users SET
+        name = ?,
+        avatar_url = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [updatedName, updatedAvatar, now, targetUserId]);
+
+    const updated = await db.get('SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url FROM users WHERE id = ?', targetUserId);
+
+    res.json({
+      success: true,
+      message: `Profile for ${updated.name} updated successfully`,
+      user: {
+        ...updated,
+        avatarUrl: updated.avatar_url
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update user profile' });
+  }
+});
+
+// ── Upload Avatar for Student / Other User (Admin & Faculty Only) ──
+router.post('/users/:id/avatar', authenticateToken, requireRole(['admin', 'faculty']), avatarUpload.single('avatar'), async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided for upload' });
+    }
+
+    const targetUser = await db.get('SELECT * FROM users WHERE id = ?', targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Target user not found' });
+    }
+
+    // Faculty restriction: can only modify students
+    if (req.user.role === 'faculty' && targetUser.role !== 'student') {
+      return res.status(403).json({ error: 'Faculty members are only authorized to edit student profiles.' });
+    }
+
+    const uploadResult = await uploadFile({
+      buffer: req.file.buffer,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      folder: 'avatars'
+    });
+
+    const avatarUrl = uploadResult.cdnUrl;
+    const now = new Date().toISOString();
+
+    await db.run('UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?', [avatarUrl, now, targetUserId]);
+
+    const updatedUser = await db.get('SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url FROM users WHERE id = ?', targetUserId);
+
+    res.json({
+      success: true,
+      message: `Profile photo for ${updatedUser.name} updated successfully`,
+      avatarUrl,
+      user: {
+        ...updatedUser,
+        avatarUrl: updatedUser.avatar_url
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to upload user avatar' });
+  }
 });
 
 export default router;

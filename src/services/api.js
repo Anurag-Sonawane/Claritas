@@ -129,6 +129,27 @@ export const api = {
 
   async generatePpt(topic, audience = 'Undergraduate Students', slidesCount = 5) {
     return await apiClient.post('/ai/ppt', { topic, audience, slidesCount });
+  },
+
+  // ── Profile Management (Admin & Faculty Only) ──
+  async updateProfile({ name, avatarUrl }) {
+    return await apiClient.put('/auth/profile', { name, avatarUrl });
+  },
+
+  async uploadProfilePhoto(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return await apiClient.upload('/auth/profile/avatar', formData);
+  },
+
+  async updateStudentProfile(studentId, { name, avatarUrl }) {
+    return await apiClient.put(`/auth/users/${studentId}/profile`, { name, avatarUrl });
+  },
+
+  async uploadStudentAvatar(studentId, file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return await apiClient.upload(`/auth/users/${studentId}/avatar`, formData);
   }
 };
 

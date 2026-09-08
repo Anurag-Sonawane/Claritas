@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowUp, ArrowDown, MoreVertical, Users } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Users } from 'lucide-react';
 import './AdminTable.css';
 
 export default function AdminTable({
@@ -46,7 +46,7 @@ export default function AdminTable({
                   <span className="sort-icon">
                     {sortBy === col.key
                       ? (sortDir === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)
-                      : <ArrowUp size={14} />
+                      : <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                     }
                   </span>
                 )}

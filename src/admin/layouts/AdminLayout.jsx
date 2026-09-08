@@ -6,6 +6,7 @@ import {
   CheckCircle, CheckSquare, Award, BarChart3, Presentation, Users2, Sparkles, Code2
 } from 'lucide-react';
 import PageWrapper from '../../components/PageWrapper.jsx';
+import ProfileModal from '../../components/ProfileModal.jsx';
 import ImpersonationBanner from '../components/ImpersonationBanner.jsx';
 import useImpersonation from '../hooks/useImpersonation.js';
 import { useAuth } from '../../context/AuthContext';
@@ -33,6 +34,7 @@ export default function AdminLayout() {
   const impersonation = useImpersonation();
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const isActive = (item) => {
     if (item.exact) return location.pathname === item.path;
@@ -84,7 +86,7 @@ export default function AdminLayout() {
               className="topbar-avatar-group"
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
-              <img src={user?.avatarUrl} alt={user?.name} className="topbar-avatar" />
+              <img src={user?.avatarUrl || user?.avatar_url || "https://ui-avatars.com/api/?name=Admin&background=f87171&color=fff"} alt={user?.name} className="topbar-avatar" />
               <div className="topbar-avatar-info">
                 <span className="topbar-avatar-name">{user?.name}</span>
                 <span className="topbar-avatar-role">{user?.roleName}</span>
@@ -92,14 +94,14 @@ export default function AdminLayout() {
 
               {showUserMenu && (
                 <div className="user-menu-dropdown" onClick={e => e.stopPropagation()}>
-                  <button className="actions-menu-item">
+                  <button className="actions-menu-item" onClick={() => { setShowProfileModal(true); setShowUserMenu(false); }}>
                     <User size={16} /> My Profile
                   </button>
-                  <button className="actions-menu-item">
+                  <Link to="/admin/settings" className="actions-menu-item" style={{ textDecoration: 'none', color: 'var(--foreground)' }} onClick={() => setShowUserMenu(false)}>
                     <Settings size={16} /> Settings
-                  </button>
+                  </Link>
                   <div className="actions-menu-divider" />
-                  <Link to="/" className="actions-menu-item" style={{ textDecoration: 'none', color: 'var(--foreground)' }}>
+                  <Link to="/" className="actions-menu-item" style={{ textDecoration: 'none', color: 'var(--foreground)' }} onClick={() => setShowUserMenu(false)}>
                     <LayoutDashboard size={16} /> Student Dashboard
                   </Link>
                   <div className="actions-menu-divider" />
@@ -111,6 +113,9 @@ export default function AdminLayout() {
             </div>
           </div>
         </header>
+
+        {/* Profile Edit Modal */}
+        <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
 
         {/* ── Page Content ── */}
         <main className="admin-content">

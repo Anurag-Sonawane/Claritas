@@ -116,7 +116,7 @@
 
 .courses-filters select {
   padding: 9px 14px;
-  background: var(--admin-input-bg);
+  background: #131b2e;
   border: 1px solid var(--admin-input-border);
   border-radius: var(--admin-input-radius);
   color: var(--foreground);
@@ -124,6 +124,13 @@
   outline: none;
   cursor: pointer;
   min-width: 140px;
+  color-scheme: dark;
+}
+
+.courses-filters select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px 12px;
 }
 
 .courses-filters select:focus {

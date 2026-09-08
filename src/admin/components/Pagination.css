@@ -64,11 +64,19 @@
 }
 
 .pagination-per-page select {
-  background: var(--admin-input-bg);
+  background: #131b2e;
   border: 1px solid var(--admin-input-border);
   border-radius: var(--admin-input-radius);
   color: var(--foreground);
   padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
+  color-scheme: dark;
 }
+
+.pagination-per-page select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px 12px;
+}
+

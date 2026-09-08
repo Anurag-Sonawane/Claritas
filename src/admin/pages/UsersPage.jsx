@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useLocation } from 'react-router-dom';
 import { UserPlus, Upload, Download, Eye, MoreHorizontal, UserX, UserCheck, Trash2, Edit } from 'lucide-react';
 import useAdminUsers from '../hooks/useAdminUsers.js';
@@ -10,25 +10,39 @@ import ColumnChooser from '../components/ColumnChooser.jsx';
 import UserDetailSlideOver from '../components/UserDetailSlideOver.jsx';
 import InviteModal from '../components/InviteModal.jsx';
 import BulkImportModal from '../components/BulkImportModal.jsx';
-import { roles } from '../data/adminMockData.js';
+import * as api from '../services/adminApi.js';
 import { getOrganizations, createUser, approveUser, rejectUser } from '../services/adminApi.js';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
 const allColumns = [
   { key: 'name', label: 'Name', sortable: true, skelWidth: '60%' },
   { key: 'email', label: 'Email', sortable: true, muted: true, skelWidth: '70%' },
-  { key: 'roleName', label: 'Role', skelWidth: '50%' },
-  { key: 'organization', label: 'Organization', skelWidth: '55%' },
-  { key: 'status', label: 'Status', skelWidth: '40%' },
+  { key: 'roleName', label: 'Role', sortable: true, skelWidth: '50%' },
+  { key: 'organization', label: 'Organization', sortable: true, skelWidth: '55%' },
+  { key: 'status', label: 'Status', sortable: true, skelWidth: '40%' },
   { key: 'lastActiveAt', label: 'Last Active', sortable: true, muted: true, skelWidth: '45%' },
 ];
 
 const roleColors = {
   'Super Admin': { bg: 'var(--role-super-admin-bg)', color: 'var(--role-super-admin)' },
+  'Administrator': { bg: 'var(--role-super-admin-bg)', color: 'var(--role-super-admin)' },
+  'Associate Professor': { bg: 'rgba(13, 148, 136, 0.15)', color: '#0d9488' },
+  'Instructor': { bg: 'rgba(13, 148, 136, 0.15)', color: '#0d9488' },
+  'Faculty': { bg: 'rgba(13, 148, 136, 0.15)', color: '#0d9488' },
+  'Student': { bg: 'rgba(46, 196, 241, 0.15)', color: 'var(--secondary)' },
   'Org Admin': { bg: 'var(--role-org-admin-bg)', color: 'var(--role-org-admin)' },
   'Course Manager': { bg: 'var(--role-course-mgr-bg)', color: 'var(--role-course-mgr)' },
   'Support': { bg: 'var(--role-support-bg)', color: 'var(--role-support)' },
 };
+
+const defaultFilterRoles = [
+  { value: 'admin', label: 'Super Admin' },
+  { value: 'faculty', label: 'Instructor / Faculty' },
+  { value: 'student', label: 'Student' },
+  { value: 'course-manager', label: 'Course Manager' },
+  { value: 'org-admin', label: 'Org Admin' },
+  { value: 'support', label: 'Support' }
+];
 
 export default function UsersPage() {
   const {
@@ -49,19 +63,65 @@ export default function UsersPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState(allColumns.map(c => c.key));
+  const [roleOptions, setRoleOptions] = useState(defaultFilterRoles);
 
-  const orgs = getOrganizations();
+  // Sync URL search parameters on mount or change
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchParam = params.get('search') || params.get('q');
+    const roleParam = params.get('role');
+    const orgParam = params.get('org') || params.get('organization');
+    if (searchParam) {
+      setQuery(searchParam);
+    }
+    if (roleParam) {
+      setFilter('role', roleParam);
+    }
+    if (orgParam) {
+      setFilter('org', orgParam);
+    }
+  }, [location.search]);
+
+  // Load all system and custom roles dynamically for the filter dropdown
+  useEffect(() => {
+    api.getRoles().then(res => {
+      if (res.data && res.data.length > 0) {
+        const fetched = res.data.map(r => ({
+          value: r.id === 'role-super-admin' ? 'admin' :
+                 r.id === 'role-instructor' ? 'faculty' :
+                 r.id === 'role-student' ? 'student' :
+                 r.id === 'role-course-mgr' ? 'course-manager' :
+                 r.id === 'role-org-admin' ? 'org-admin' :
+                 r.id === 'role-support' ? 'support' : r.id,
+          label: r.name
+        }));
+        const map = new Map();
+        [...defaultFilterRoles, ...fetched].forEach(item => map.set(item.value, item));
+        setRoleOptions(Array.from(map.values()));
+      }
+    }).catch(err => console.warn('Using default filter roles:', err));
+  }, []);
+
+  // Dynamically collect all organizations and departments present in the system
+  const availableOrgs = useMemo(() => {
+    const orgSet = new Set(getOrganizations());
+    users.forEach(u => {
+      if (u.organization) orgSet.add(u.organization);
+      if (u.department) orgSet.add(u.department);
+    });
+    return Array.from(orgSet).filter(Boolean);
+  }, [users]);
 
   const filterConfig = [
     {
       key: 'role',
       label: 'All Roles',
-      options: roles.map(r => ({ value: r.id, label: r.name })),
+      options: roleOptions,
     },
     {
       key: 'org',
       label: 'All Organizations',
-      options: orgs.map(o => ({ value: o, label: o })),
+      options: availableOrgs.map(o => ({ value: o, label: o })),
     },
     {
       key: 'status',
@@ -309,9 +369,9 @@ export default function UsersPage() {
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>User Role</label>
                   <select
+                    className="form-input"
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
-                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--glass-border)', borderRadius: 8, color: '#fff' }}
                   >
                     <option value="student">Student</option>
                     <option value="faculty">Faculty / Instructor</option>

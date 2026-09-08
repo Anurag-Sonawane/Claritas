@@ -23,7 +23,15 @@ export async function fetchCourses({
     headers: { ...getAuthHeader() }
   });
   if (!res.ok) throw new Error('Failed to fetch courses');
-  return await res.json();
+  const result = await res.json();
+  const data = Array.isArray(result) ? result : (result.data || []);
+  const meta = result.meta || {
+    total: result.total ?? data.length,
+    page: result.page ?? page,
+    perPage: result.perPage ?? perPage,
+    totalPages: result.totalPages ?? (Math.ceil((result.total ?? data.length) / perPage) || 1)
+  };
+  return { data, meta };
 }
 
 export async function fetchCourseById(id) {

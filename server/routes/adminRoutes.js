@@ -24,23 +24,78 @@ router.use(authenticateToken, requireRole(['admin']));
 // ── Admin Users Management ──
 router.get('/users', async (req, res) => {
   try {
-    const { role, status, department, search, page = 1, limit = 10, sort = 'name', order = 'asc' } = req.query;
+    const { role, status, department, org, organization, search, page = 1, limit = 10, sort = 'name', order = 'asc' } = req.query;
 
     let query = 'SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url, created_at FROM users WHERE 1=1';
     const params = [];
 
-    if (role && role !== 'all') { query += ' AND role = ?'; params.push(role); }
-    if (status && status !== 'all') { query += ' AND status = ?'; params.push(status); }
-    if (department && department !== 'all') { query += ' AND department = ?'; params.push(department); }
-    if (search) {
-      query += ' AND (name LIKE ? OR email LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+    // Role filter
+    if (role && role !== 'all') {
+      const r = role.toLowerCase().trim();
+      if (r === 'admin' || r === 'role-super-admin' || r.includes('admin')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ?)';
+        params.push('admin', 'role-super-admin', '%admin%');
+      } else if (r === 'faculty' || r === 'role-instructor' || r.includes('instructor') || r.includes('professor') || r.includes('faculty')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ? OR role_name ILIKE ?)';
+        params.push('faculty', 'role-instructor', '%instructor%', '%professor%');
+      } else if (r === 'student' || r === 'role-student' || r.includes('student')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ?)';
+        params.push('student', 'role-student', '%student%');
+      } else if (r === 'course-manager' || r === 'role-course-mgr' || r.includes('course manager')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ?)';
+        params.push('course-manager', 'role-course-mgr', '%course manager%');
+      } else if (r === 'org-admin' || r === 'role-org-admin' || r.includes('org admin')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ?)';
+        params.push('org-admin', 'role-org-admin', '%org admin%');
+      } else if (r === 'support' || r === 'role-support' || r.includes('support')) {
+        query += ' AND (role = ? OR role = ? OR role_name ILIKE ?)';
+        params.push('support', 'role-support', '%support%');
+      } else {
+        query += ' AND (role = ? OR role_name = ? OR role_name ILIKE ?)';
+        params.push(role, role, `%${role}%`);
+      }
     }
 
-    const validSortCols = ['name', 'email', 'role', 'status', 'created_at', 'last_active_at'];
-    const sortCol = validSortCols.includes(sort) ? sort : 'name';
+    // Status filter
+    if (status && status !== 'all') {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    // Organization / Department filter
+    const targetOrg = (organization || org || department || '').trim();
+    if (targetOrg && targetOrg !== 'all') {
+      query += ' AND (organization = ? OR department = ? OR organization ILIKE ? OR department ILIKE ?)';
+      params.push(targetOrg, targetOrg, `%${targetOrg}%`, `%${targetOrg}%`);
+    }
+
+    // Search query (checks name, email, organization, department, and role name)
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      query += ' AND (name ILIKE ? OR email ILIKE ? OR organization ILIKE ? OR department ILIKE ? OR role_name ILIKE ?)';
+      params.push(term, term, term, term, term);
+    }
+
+    // Sorting support across all columns
+    const sortColMap = {
+      name: 'LOWER(name)',
+      email: 'LOWER(email)',
+      role: 'COALESCE(role_name, role)',
+      roleName: 'COALESCE(role_name, role)',
+      role_name: 'COALESCE(role_name, role)',
+      organization: 'COALESCE(organization, department)',
+      org: 'COALESCE(organization, department)',
+      department: 'COALESCE(department, organization)',
+      status: 'status',
+      lastActiveAt: 'COALESCE(last_active_at, created_at::text)',
+      last_active_at: 'COALESCE(last_active_at, created_at::text)',
+      createdAt: 'created_at',
+      created_at: 'created_at'
+    };
+
+    const sortExpr = sortColMap[sort] || 'LOWER(name)';
     const sortOrder = order.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-    query += ` ORDER BY ${sortCol} ${sortOrder}`;
+    query += ` ORDER BY ${sortExpr} ${sortOrder}`;
 
     const allFiltered = await db.all(query, params);
     const total = allFiltered.length;
@@ -63,8 +118,11 @@ router.get('/users', async (req, res) => {
       monthlyActiveUsers: allUsers.filter(u => u.last_active_at && u.last_active_at >= thirtyDaysAgo).length,
     };
 
-    const deptRows = await db.all('SELECT department FROM users WHERE department IS NOT NULL');
-    const departments = [...new Set(deptRows.map(r => r.department))];
+    const deptRows = await db.all('SELECT DISTINCT department FROM users WHERE department IS NOT NULL');
+    const departments = [...new Set(deptRows.map(r => r.department).filter(Boolean))];
+
+    const orgRows = await db.all('SELECT DISTINCT organization FROM users WHERE organization IS NOT NULL');
+    const organizations = [...new Set([...orgRows.map(r => r.organization), ...departments].filter(Boolean))];
 
     res.json({
       users: paginatedUsers,
@@ -72,7 +130,8 @@ router.get('/users', async (req, res) => {
       page: pageNum,
       totalPages: Math.ceil(total / limitNum) || 1,
       metrics,
-      departments
+      departments,
+      organizations
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -112,7 +171,8 @@ router.post('/users', recordAuditLog('USER_CREATED', req => `Created user ${req.
 router.put('/users/:id', recordAuditLog('USER_UPDATED', req => `Updated user ${req.params.id}`), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, role_name, department, organization, status } = req.body;
+    const { name, email, role, role_name, department, organization, status, avatar_url, avatarUrl } = req.body;
+    const resolvedAvatar = avatarUrl !== undefined ? avatarUrl : avatar_url;
 
     const user = await db.get('SELECT * FROM users WHERE id = ?', id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -125,12 +185,16 @@ router.put('/users/:id', recordAuditLog('USER_UPDATED', req => `Updated user ${r
         role_name = COALESCE(?, role_name),
         department = COALESCE(?, department),
         organization = COALESCE(?, organization),
-        status = COALESCE(?, status)
+        status = COALESCE(?, status),
+        avatar_url = COALESCE(?, avatar_url)
       WHERE id = ?
-    `, [name, email, role, role_name, department, organization, status, id]);
+    `, [name, email, role, role_name, department, organization, status, resolvedAvatar ?? null, id]);
 
     const updated = await db.get('SELECT id, email, name, role, role_name, department, organization, status, avatar_url FROM users WHERE id = ?', id);
-    res.json(updated);
+    res.json({
+      ...updated,
+      avatarUrl: updated.avatar_url
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -143,6 +207,10 @@ router.patch('/users/:id/status', async (req, res) => {
     if (!['active', 'suspended', 'pending'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
+
+    const user = await db.get('SELECT * FROM users WHERE id = ?', id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
     await db.run('UPDATE users SET status = ? WHERE id = ?', [status, id]);
     res.json({ success: true, id, status });
   } catch (err) {
@@ -150,28 +218,66 @@ router.patch('/users/:id/status', async (req, res) => {
   }
 });
 
-router.patch('/users/:id/approve', recordAuditLog('USER_APPROVED', req => `Approved registration for ${req.params.id}`), async (req, res) => {
+const handleApproveUser = async (req, res) => {
   try {
-    await db.run("UPDATE users SET status = 'active' WHERE id = ?", req.params.id);
-    res.json({ success: true, message: 'User approved' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const user = await db.get('SELECT * FROM users WHERE id = ?', req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-router.patch('/users/:id/reject', recordAuditLog('USER_REJECTED', req => `Rejected registration for ${req.params.id}`), async (req, res) => {
-  try {
-    await db.run('DELETE FROM users WHERE id = ?', req.params.id);
-    res.json({ success: true, message: 'User registration rejected and removed' });
+    await db.run("UPDATE users SET status = 'active' WHERE id = ?", req.params.id);
+    const updated = await db.get('SELECT id, email, name, role, role_name, department, organization, status, avatar_url FROM users WHERE id = ?', req.params.id);
+    res.json({ success: true, message: `Account for ${user.name} approved successfully.`, user: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+const handleRejectUser = async (req, res) => {
+  try {
+    const user = await db.get('SELECT * FROM users WHERE id = ?', req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    await db.run('DELETE FROM users WHERE id = ?', req.params.id);
+    res.json({ success: true, message: `Registration request for ${user.name} rejected.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+router.post('/users/:id/approve', recordAuditLog('USER_APPROVED', req => `Approved user ${req.params.id}`), handleApproveUser);
+router.patch('/users/:id/approve', recordAuditLog('USER_APPROVED', req => `Approved user ${req.params.id}`), handleApproveUser);
+router.post('/users/:id/reject', recordAuditLog('USER_REJECTED', req => `Rejected user ${req.params.id}`), handleRejectUser);
+router.patch('/users/:id/reject', recordAuditLog('USER_REJECTED', req => `Rejected user ${req.params.id}`), handleRejectUser);
 
 router.delete('/users/:id', recordAuditLog('USER_DELETED', req => `Deleted user ${req.params.id}`), async (req, res) => {
   try {
-    await db.run('DELETE FROM users WHERE id = ?', req.params.id);
-    res.json({ success: true, message: 'User deleted' });
+    const { id } = req.params;
+    if (id === 'user-001') {
+      return res.status(403).json({ error: 'Cannot delete primary root administrator account' });
+    }
+    const user = await db.get('SELECT * FROM users WHERE id = ?', id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    await db.run('DELETE FROM users WHERE id = ?', id);
+    res.json({ success: true, message: `User ${id} deleted` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const user = await db.get('SELECT * FROM users WHERE id = ?', id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const hash = bcrypt.hashSync(newPassword, 10);
+    await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
+    res.json({ success: true, message: 'Password reset successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -223,13 +329,57 @@ router.get('/courses', async (req, res) => {
     const limitNum = Math.max(1, parseInt(perPage, 10));
     const offset = (pageNum - 1) * limitNum;
 
-    const parsed = allCourses.slice(offset, offset + limitNum).map(c => ({
-      ...c,
-      modules: c.modules_json ? JSON.parse(c.modules_json) : [],
-      tags: c.tags ? JSON.parse(c.tags) : []
-    }));
+    const parsed = allCourses.slice(offset, offset + limitNum).map(c => {
+      let modules = [];
+      try {
+        modules = c.modules_json ? (typeof c.modules_json === 'string' ? JSON.parse(c.modules_json) : c.modules_json) : [];
+      } catch {
+        modules = [];
+      }
+      let tags = [];
+      try {
+        tags = c.tags ? (typeof c.tags === 'string' ? JSON.parse(c.tags) : c.tags) : [];
+      } catch {
+        tags = [];
+      }
 
-    res.json({ data: parsed, total, page: pageNum, totalPages: Math.ceil(total / limitNum) || 1 });
+      const totalModules = c.total_modules || modules.length || 0;
+      const totalLessons = c.total_lessons || modules.reduce((sum, m) => sum + (m.lessons?.length || 0), 0);
+
+      return {
+        ...c,
+        modules,
+        tags,
+        thumbnailGradient: c.thumbnail_gradient || 'linear-gradient(135deg, #667eea, #764ba2)',
+        enrollmentCount: c.students_count || 0,
+        totalModules,
+        totalLessons,
+        totalDuration: c.total_duration || '0min',
+        completionRate: c.status === 'published' ? 65 : 0,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+        publishedAt: c.published_at,
+        managerId: c.manager_id,
+        managerName: c.manager_name,
+        instructors: c.manager_name
+          ? [{ id: c.manager_id || 'inst-1', name: c.manager_name, avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(c.manager_name)}&background=random` }]
+          : [{ id: 'inst-1', name: 'Claritas Faculty', avatarUrl: 'https://i.pravatar.cc/150?u=inst1' }]
+      };
+    });
+
+    const totalPages = Math.ceil(total / limitNum) || 1;
+    res.json({
+      data: parsed,
+      total,
+      page: pageNum,
+      totalPages,
+      meta: {
+        total,
+        page: pageNum,
+        perPage: limitNum,
+        totalPages
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -239,11 +389,39 @@ router.get('/courses/:id', async (req, res) => {
   try {
     const course = await db.get('SELECT * FROM courses WHERE id = ?', req.params.id);
     if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    let modules = [];
+    try {
+      modules = course.modules_json ? (typeof course.modules_json === 'string' ? JSON.parse(course.modules_json) : course.modules_json) : [];
+    } catch {
+      modules = [];
+    }
+    let tags = [];
+    try {
+      tags = course.tags ? (typeof course.tags === 'string' ? JSON.parse(course.tags) : course.tags) : [];
+    } catch {
+      tags = [];
+    }
+
     res.json({
       data: {
         ...course,
-        modules: course.modules_json ? JSON.parse(course.modules_json) : [],
-        tags: course.tags ? JSON.parse(course.tags) : []
+        modules,
+        tags,
+        thumbnailGradient: course.thumbnail_gradient || 'linear-gradient(135deg, #667eea, #764ba2)',
+        enrollmentCount: course.students_count || 0,
+        totalModules: course.total_modules || modules.length || 0,
+        totalLessons: course.total_lessons || 0,
+        totalDuration: course.total_duration || '0min',
+        completionRate: course.status === 'published' ? 65 : 0,
+        createdAt: course.created_at,
+        updatedAt: course.updated_at,
+        publishedAt: course.published_at,
+        managerId: course.manager_id,
+        managerName: course.manager_name,
+        instructors: course.manager_name
+          ? [{ id: course.manager_id || 'inst-1', name: course.manager_name, avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(course.manager_name)}&background=random` }]
+          : [{ id: 'inst-1', name: 'Claritas Faculty', avatarUrl: 'https://i.pravatar.cc/150?u=inst1' }]
       }
     });
   } catch (err) {
@@ -253,9 +431,12 @@ router.get('/courses/:id', async (req, res) => {
 
 router.post('/courses', async (req, res) => {
   try {
-    const { code, title, department = 'Computer Science', description = '', status = 'draft', category = 'Technology', level = 'Beginner', managerId = null, managerName = null } = req.body;
-    if (!code || !title) {
-      return res.status(400).json({ error: 'Code and title are required' });
+    let { code, title, department = 'Computer Science', description = '', status = 'draft', category = 'Technology', level = 'Beginner', managerId = null, managerName = null } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Course title is required' });
+    }
+    if (!code || !code.trim()) {
+      code = 'CRS-' + Date.now().toString().slice(-5);
     }
 
     const id = `crs-${Date.now()}`;
@@ -264,7 +445,7 @@ router.post('/courses', async (req, res) => {
     await db.run(`
       INSERT INTO courses (id, code, title, department, description, status, category, level, manager_id, manager_name, modules_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?)
-    `, [id, code, title, department, description, status, category, level, managerId, managerName, now, now]);
+    `, [id, code.trim(), title.trim(), department, description, status, category, level, managerId, managerName, now, now]);
 
     const created = await db.get('SELECT * FROM courses WHERE id = ?', id);
     res.status(201).json({ data: created });
@@ -693,19 +874,80 @@ router.post('/certificates', async (req, res) => {
 router.get('/roles', async (req, res) => {
   try {
     const roles = await db.all('SELECT * FROM roles ORDER BY is_system DESC, name ASC');
+    const allUsers = await db.all('SELECT id, role, role_name FROM users');
 
-    const parsed = roles.map(r => ({
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      permissions: JSON.parse(r.permissions_json || '[]'),
-      isSystem: Boolean(r.is_system),
-      userCount: r.user_count,
-      createdAt: r.created_at,
-      colorVar: r.name === 'Super Admin' ? '--role-super-admin' : r.name === 'Org Admin' ? '--role-org-admin' : '--role-course-mgr'
-    }));
+    const parsed = roles.map(r => {
+      const count = allUsers.filter(u => {
+        if (u.role === r.id || u.role === r.name || u.role_name === r.name) return true;
+        if (r.name === 'Super Admin' && (u.role === 'admin' || u.role_name?.toLowerCase().includes('admin'))) return true;
+        if (r.name === 'Instructor' && (u.role === 'faculty' || u.role_name?.toLowerCase().includes('professor') || u.role_name?.toLowerCase().includes('instructor'))) return true;
+        if (r.name === 'Student' && (u.role === 'student' || u.role_name?.toLowerCase().includes('student'))) return true;
+        if (r.name === 'Course Manager' && (u.role === 'course-manager' || u.role_name?.toLowerCase().includes('course manager'))) return true;
+        if (r.name === 'Org Admin' && (u.role === 'org-admin' || u.role_name?.toLowerCase().includes('org admin'))) return true;
+        if (r.name === 'Support' && (u.role === 'support' || u.role_name?.toLowerCase().includes('support'))) return true;
+        return false;
+      }).length;
+
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        permissions: JSON.parse(r.permissions_json || '[]'),
+        isSystem: Boolean(r.is_system),
+        userCount: count,
+        createdAt: r.created_at,
+        colorVar: r.name === 'Super Admin' ? '--role-super-admin' : r.name === 'Org Admin' ? '--role-org-admin' : r.name === 'Course Manager' ? '--role-course-mgr' : r.name === 'Support' ? '--role-support' : r.name === 'Instructor' ? '--status-active' : '--role-custom'
+      };
+    });
 
     res.json({ data: parsed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/roles/:id/users', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const role = await db.get('SELECT * FROM roles WHERE id = ?', id);
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+
+    const allUsers = await db.all('SELECT id, email, name, role, role_name, department, organization, status, last_active_at, avatar_url, created_at FROM users ORDER BY name ASC');
+
+    const matchedUsers = allUsers.filter(u => {
+      if (u.role === role.id || u.role === role.name || u.role_name === role.name) return true;
+      if (role.name === 'Super Admin' && (u.role === 'admin' || u.role_name?.toLowerCase().includes('admin'))) return true;
+      if (role.name === 'Instructor' && (u.role === 'faculty' || u.role_name?.toLowerCase().includes('professor') || u.role_name?.toLowerCase().includes('instructor'))) return true;
+      if (role.name === 'Student' && (u.role === 'student' || u.role_name?.toLowerCase().includes('student'))) return true;
+      if (role.name === 'Course Manager' && (u.role === 'course-manager' || u.role_name?.toLowerCase().includes('course manager'))) return true;
+      if (role.name === 'Org Admin' && (u.role === 'org-admin' || u.role_name?.toLowerCase().includes('org admin'))) return true;
+      if (role.name === 'Support' && (u.role === 'support' || u.role_name?.toLowerCase().includes('support'))) return true;
+      return false;
+    });
+
+    res.json({
+      role: {
+        id: role.id,
+        name: role.name,
+        description: role.description,
+        permissions: JSON.parse(role.permissions_json || '[]'),
+        isSystem: Boolean(role.is_system),
+        userCount: matchedUsers.length
+      },
+      users: matchedUsers.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        roleName: u.role_name || (u.role === 'admin' ? 'Super Admin' : u.role === 'faculty' ? 'Instructor' : 'Student'),
+        department: u.department || 'General',
+        organization: u.organization || 'Claritas University',
+        status: u.status || 'active',
+        lastActiveAt: u.last_active_at || 'Never',
+        avatarUrl: u.avatar_url,
+        createdAt: u.created_at
+      }))
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -737,19 +979,31 @@ router.put('/roles/:id', recordAuditLog('ROLE_UPDATED', req => `Updated role ${r
 
     const role = await db.get('SELECT * FROM roles WHERE id = ?', id);
     if (!role) return res.status(404).json({ error: 'Role not found' });
-    if (role.is_system) return res.status(403).json({ error: 'Cannot modify a protected system role' });
+
+    // Canonical name preserved for system roles, customizable for custom roles
+    const newName = role.is_system ? role.name : (name ? name.trim() : role.name);
+    const newDesc = description !== undefined ? description : role.description;
+    const newPerms = permissions !== undefined ? JSON.stringify(permissions) : role.permissions_json;
 
     await db.run(`
       UPDATE roles SET
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        permissions_json = COALESCE(?, permissions_json)
+        name = ?,
+        description = ?,
+        permissions_json = ?
       WHERE id = ?
-    `, [name, description, permissions ? JSON.stringify(permissions) : null, id]);
+    `, [newName, newDesc, newPerms, id]);
 
     const updated = await db.get('SELECT * FROM roles WHERE id = ?', id);
     res.json({
-      data: { ...updated, permissions: JSON.parse(updated.permissions_json || '[]'), isSystem: false }
+      data: {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        permissions: JSON.parse(updated.permissions_json || '[]'),
+        isSystem: Boolean(updated.is_system),
+        userCount: updated.user_count,
+        createdAt: updated.created_at
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

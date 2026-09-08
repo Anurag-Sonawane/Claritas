@@ -31,7 +31,12 @@ export function AuthProvider({ children }) {
         try {
           // Verify with live backend
           const verifiedUser = await api.getCurrentUser();
-          setUser({ ...parsedUser, ...verifiedUser });
+          const merged = {
+            ...parsedUser,
+            ...verifiedUser,
+            avatarUrl: verifiedUser.avatarUrl || verifiedUser.avatar_url || parsedUser.avatarUrl || parsedUser.avatar_url,
+          };
+          setUser(merged);
         } catch (err) {
           console.warn('Session verification notice:', err.message);
           // If token expired or invalid and couldn't be refreshed
@@ -50,7 +55,11 @@ export function AuthProvider({ children }) {
   const login = async (email, password, rememberMe = false) => {
     try {
       const data = await api.login(email, password, rememberMe);
-      const userWithPersistence = { ...data.user, rememberMe };
+      const userWithPersistence = {
+        ...data.user,
+        avatarUrl: data.user.avatarUrl || data.user.avatar_url,
+        rememberMe
+      };
 
       setUser(userWithPersistence);
 
@@ -66,6 +75,23 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateUser = (updatedFields) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const merged = {
+        ...prev,
+        ...updatedFields,
+        avatarUrl: updatedFields.avatarUrl || updatedFields.avatar_url || prev.avatarUrl || prev.avatar_url,
+      };
+      if (prev.rememberMe) {
+        localStorage.setItem('claritas_user', JSON.stringify(merged));
+      } else {
+        sessionStorage.setItem('claritas_user', JSON.stringify(merged));
+      }
+      return merged;
+    });
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -78,7 +104,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

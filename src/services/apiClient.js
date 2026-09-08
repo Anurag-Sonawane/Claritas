@@ -145,6 +145,8 @@ export const apiClient = {
   put: (url, body, headers = {}) => request(url, { method: 'PUT', body: JSON.stringify(body), headers }),
   patch: (url, body, headers = {}) => request(url, { method: 'PATCH', body: JSON.stringify(body), headers }),
   delete: (url, headers = {}) => request(url, { method: 'DELETE', headers }),
+  upload: (url, formData, headers = {}) => request(url, { method: 'POST', body: formData, headers }),
+  request,
 };
 
 export default apiClient;

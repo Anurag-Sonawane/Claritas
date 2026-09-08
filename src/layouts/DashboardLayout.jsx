@@ -43,10 +43,18 @@ export default function DashboardLayout() {
           
           <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img src={user?.avatarUrl || "https://i.pravatar.cc/150?u=student1"} alt="User Avatar" className="avatar" />
+              <img 
+                src={user?.avatarUrl || user?.avatar_url || "https://ui-avatars.com/api/?name=Student&background=6366f1&color=fff"} 
+                alt="User Avatar" 
+                className="avatar" 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://ui-avatars.com/api/?name=Student&background=6366f1&color=fff";
+                }}
+              />
               <div className="user-details" style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="user-name" style={{ fontWeight: '600' }}>{user?.name || 'Student'}</span>
-                <span className="text-muted" style={{ fontSize: '0.8rem' }}>Computer Science</span>
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>{user?.department || 'Student Portal'}</span>
               </div>
             </div>
             <button onClick={logout} className="btn-outline btn-sm danger" title="Sign Out" style={{ borderColor: 'rgba(248, 113, 113, 0.4)', color: 'var(--status-deleted)' }}>

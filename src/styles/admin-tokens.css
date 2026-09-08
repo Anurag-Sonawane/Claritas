@@ -4,6 +4,7 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
+  color-scheme: dark;
   /* ── Layout Dimensions ── */
   --admin-sidebar-width: 272px;
   --admin-sidebar-collapsed: 72px;
@@ -112,4 +113,25 @@
   --scorm-validating: #60A5FA;
   --scorm-valid: #34D399;
   --scorm-invalid: #F87171;
+}
+
+/* ── Global Admin Form Controls & Select Dropdowns ── */
+select,
+.form-input,
+.filter-dropdown select,
+.courses-filters select,
+.pagination-per-page select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup,
+.form-input option,
+.form-input optgroup,
+.filter-dropdown select option,
+.courses-filters select option,
+.pagination-per-page select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px 12px;
 }

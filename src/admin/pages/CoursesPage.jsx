@@ -75,7 +75,7 @@ export default function CoursesPage() {
       <div className="courses-header">
         <h1>
           <BookOpen size={24} style={{ color: 'var(--primary)' }} />
-          Courses <span className="count-badge">{cm.meta.total}</span>
+          Courses <span className="count-badge">{cm.meta?.total ?? 0}</span>
         </h1>
         <div className="courses-toolbar">
           <div className="view-toggle">
@@ -161,12 +161,12 @@ export default function CoursesPage() {
       )}
 
       {/* Pagination */}
-      {cm.meta.totalPages > 1 && (
+      {(cm.meta?.totalPages || 1) > 1 && (
         <Pagination
-          page={cm.meta.page}
-          totalPages={cm.meta.totalPages}
-          total={cm.meta.total}
-          perPage={cm.meta.perPage}
+          page={cm.meta?.page || 1}
+          totalPages={cm.meta?.totalPages || 1}
+          total={cm.meta?.total || 0}
+          perPage={cm.meta?.perPage || 12}
           onPageChange={cm.setPage}
           onPerPageChange={cm.setPerPage}
         />
